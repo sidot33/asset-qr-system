@@ -1,0 +1,817 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>固定资产盘点二维码系统</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f6fa; color: #333; line-height: 1.5; }
+.container { max-width: 1400px; margin: 0 auto; padding: 16px; }
+header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 10px; margin-bottom: 20px; text-align: center; }
+header h1 { font-size: 22px; margin-bottom: 5px; }
+header p { opacity: 0.9; font-size: 13px; }
+.btn { padding: 8px 16px; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; transition: all 0.2s; display: inline-block; }
+.btn-primary { background: #667eea; color: white; }
+.btn-success { background: #52c41a; color: white; }
+.btn-warning { background: #faad14; color: white; }
+.btn-danger { background: #ff4d4f; color: white; }
+.btn-secondary { background: #d9d9d9; color: #333; }
+.toolbar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; align-items: center; }
+.search-box { padding: 8px 12px; border: 1px solid #d9d9d9; border-radius: 6px; font-size: 13px; }
+select.search-box { min-width: 130px; }
+.card { background: white; border-radius: 10px; padding: 16px; margin-bottom: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+.card-title { font-size: 16px; font-weight: 600; margin-bottom: 12px; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th, td { padding: 10px; text-align: left; border-bottom: 1px solid #f0f0f0; }
+th { background: #fafafa; font-weight: 600; color: #666; }
+tr:hover { background: #f5f5f5; }
+.tag { padding: 2px 8px; border-radius: 4px; font-size: 12px; }
+.tag-success { background: #f6ffed; color: #52c41a; border: 1px solid #b7eb8f; }
+.tag-info { background: #e6f7ff; color: #1890ff; border: 1px solid #91d5ff; }
+.tag-warning { background: #fffbe6; color: #faad14; border: 1px solid #ffe58f; }
+.tag-danger { background: #fff2f0; color: #ff4d4f; border: 1px solid #ffccc7; }
+.modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: center; padding: 20px; }
+.modal.active { display: flex; }
+.modal-content { background: white; border-radius: 10px; width: 100%; max-width: 800px; max-height: 90vh; overflow-y: auto; }
+.modal-header { padding: 16px; border-bottom: 1px solid #f0f0f0; display: flex; justify-content: space-between; align-items: center; }
+.modal-body { padding: 16px; }
+.modal-footer { padding: 16px; border-top: 1px solid #f0f0f0; display: flex; justify-content: flex-end; gap: 10px; }
+.close-btn { background: none; border: none; font-size: 24px; cursor: pointer; color: #999; }
+.form-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 12px; }
+.form-group { display: flex; flex-direction: column; }
+.form-group label { font-size: 13px; color: #666; margin-bottom: 4px; }
+.form-group input, .form-group select, .form-group textarea { padding: 8px 12px; border: 1px solid #d9d9d9; border-radius: 6px; font-size: 13px; }
+.checkbox-col { width: 40px; text-align: center; }
+.stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
+.stat-card { background: white; padding: 16px; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); text-align: center; }
+.stat-value { font-size: 26px; font-weight: bold; color: #667eea; }
+.stat-label { font-size: 12px; color: #666; margin-top: 4px; }
+.tabs { display: flex; gap: 4px; margin-bottom: 16px; border-bottom: 2px solid #f0f0f0; }
+.tab { padding: 10px 20px; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -2px; font-size: 14px; }
+.tab.active { border-bottom-color: #667eea; color: #667eea; font-weight: 600; }
+.tab-content { display: none; }
+.tab-content.active { display: block; }
+.qr-preview-area { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 2000; overflow-y: auto; }
+.qr-preview-area.active { display: block; }
+.qr-controls { position: sticky; top: 0; background: white; padding: 12px; display: flex; justify-content: center; gap: 10px; z-index: 10; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+.qr-sheet { width: 210mm; min-height: 297mm; margin: 20px auto; background: white; padding: 8mm; display: grid; grid-template-columns: repeat(2, 1fr); gap: 6mm; }
+.qr-label { border: 1.5px solid #333; border-radius: 6px; padding: 6mm; page-break-inside: avoid; display: flex; flex-direction: column; align-items: center; background: #fff; }
+.qr-label .label-header { width: 100%; margin-bottom: 4mm; }
+.qr-label .label-title { font-size: 13px; font-weight: bold; color: #333; text-align: center; margin-bottom: 3mm; letter-spacing: 1px; }
+.qr-label .label-table { width: 100%; font-size: 10px; border-collapse: collapse; margin-bottom: 3mm; }
+.qr-label .label-table td { padding: 2px 4px; border: 1px solid #ccc; }
+.qr-label .label-table td:first-child { background: #f5f5f5; font-weight: 600; color: #555; width: 35%; text-align: center; }
+.qr-label .label-table td:last-child { color: #333; text-align: left; }
+.qr-label .qr-wrap { margin-top: 2mm; }
+.qr-label canvas { display: block; margin: 0 auto; }
+@media print { body * { visibility: hidden; } .qr-preview-area, .qr-preview-area *, .qr-sheet, .qr-sheet * { visibility: visible; } .qr-controls { display: none; } .qr-preview-area { position: absolute; top: 0; left: 0; background: white; } .qr-sheet { margin: 0; box-shadow: none; padding: 8mm; } }
+
+/* Scan page styles */
+.scan-page { display: none; }
+.scan-page.active { display: block; }
+.scan-header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px 16px; text-align: center; }
+.scan-header h1 { font-size: 18px; font-weight: 600; }
+.scan-card { background: white; margin: 12px; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 12px rgba(0,0,0,0.06); }
+.scan-card-header { padding: 16px; border-bottom: 1px solid #f0f0f0; display: flex; justify-content: space-between; align-items: center; }
+.scan-code { font-size: 16px; font-weight: 600; color: #667eea; }
+.scan-body { padding: 16px; }
+.info-row { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #f5f5f5; }
+.info-row:last-child { border-bottom: none; }
+.info-label { color: #999; font-size: 13px; }
+.info-value { color: #333; font-size: 14px; font-weight: 500; text-align: right; max-width: 60%; word-break: break-all; }
+.section-title { font-size: 14px; font-weight: 600; padding: 12px 16px; background: #fafafa; color: #666; }
+.confirm-box { background: white; margin: 12px; border-radius: 12px; padding: 16px; box-shadow: 0 2px 12px rgba(0,0,0,0.06); }
+.float-btn { position: fixed; bottom: 0; left: 0; right: 0; padding: 12px 16px; background: white; box-shadow: 0 -2px 10px rgba(0,0,0,0.05); display: flex; gap: 10px; z-index: 100; }
+.float-btn .btn { flex: 1; padding: 14px; font-size: 16px; }
+.loading, .error-box, .success-box { padding: 40px 20px; text-align: center; }
+.spinner { width: 40px; height: 40px; border: 3px solid #f3f3f3; border-top: 3px solid #667eea; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 15px; }
+@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+.notice { background: #fffbe6; border: 1px solid #ffe58f; border-radius: 8px; padding: 10px 12px; font-size: 12px; color: #d48806; margin-bottom: 12px; }
+</style>
+</head>
+<body>
+
+<!-- Admin Page -->
+<div id="adminPage" class="admin-page">
+<div class="container">
+<header>
+<h1>固定资产盘点二维码系统</h1>
+<p>扫码即查 · 扫码即盘 · 自动比对 · 差异报告</p>
+</header>
+
+<div class="tabs">
+<div class="tab active" data-tab="assets">资产管理</div>
+<div class="tab" data-tab="inventory">盘点任务</div>
+<div class="tab" data-tab="reports">差异报告</div>
+</div>
+
+<!-- Assets Tab -->
+<div class="tab-content active" id="tab-assets">
+<div class="stats-grid">
+<div class="stat-card"><div class="stat-value" id="stat-total">0</div><div class="stat-label">资产总数</div></div>
+<div class="stat-card"><div class="stat-value" id="stat-inuse">0</div><div class="stat-label">在用资产</div></div>
+<div class="stat-card"><div class="stat-value" id="stat-idle">0</div><div class="stat-label">闲置资产</div></div>
+<div class="stat-card"><div class="stat-value" id="stat-value">0</div><div class="stat-label">资产原值(万元)</div></div>
+</div>
+
+<div class="card">
+<div class="toolbar">
+<button class="btn btn-primary" onclick="openAssetModal()">+ 新增资产</button>
+<button class="btn btn-success" onclick="batchGenerateQR()">批量生成二维码</button>
+<button class="btn btn-warning" onclick="document.getElementById('importFile').click()">导入Excel</button>
+<input type="file" id="importFile" accept=".xlsx,.xls" style="display:none" onchange="importExcel(this)">
+<button class="btn btn-secondary" onclick="exportTemplate()">下载模板</button>
+<button class="btn btn-secondary" onclick="exportAssets()">导出资产</button>
+<input type="text" class="search-box" id="searchInput" placeholder="搜索..." oninput="renderTable()">
+<select class="search-box" id="deptFilter" onchange="renderTable()"><option value="">全部部门</option></select>
+<select class="search-box" id="statusFilter" onchange="renderTable()">
+<option value="">全部状态</option><option value="在用">在用</option><option value="闲置">闲置</option><option value="维修">维修</option><option value="报废">报废</option>
+</select>
+</div>
+<table>
+<thead><tr>
+<th class="checkbox-col"><input type="checkbox" id="selectAll" onchange="toggleSelectAll()"></th>
+<th>资产编号</th><th>资产名称</th><th>分类</th><th>部门</th><th>存放地点</th><th>状态</th><th>责任人</th><th>购入价格</th><th>操作</th>
+</tr></thead>
+<tbody id="assetTable"></tbody>
+</table>
+</div>
+</div>
+
+<!-- Inventory Tab -->
+<div class="tab-content" id="tab-inventory">
+<div class="card">
+<div class="toolbar">
+<button class="btn btn-primary" onclick="openTaskModal()">+ 新建盘点任务</button>
+</div>
+<table>
+<thead><tr><th>任务ID</th><th>任务名称</th><th>开始日期</th><th>结束日期</th><th>状态</th><th>操作</th></tr></thead>
+<tbody id="taskTable"></tbody>
+</table>
+</div>
+</div>
+
+<!-- Reports Tab -->
+<div class="tab-content" id="tab-reports">
+<div class="card">
+<div class="toolbar">
+<select class="search-box" id="reportTaskSelect"><option value="">选择盘点任务</option></select>
+<button class="btn btn-primary" onclick="generateReport()">生成差异报告</button>
+</div>
+<div id="reportContent"></div>
+</div>
+</div>
+</div>
+
+<!-- Asset Modal -->
+<div class="modal" id="assetModal">
+<div class="modal-content">
+<div class="modal-header"><h3 id="modalTitle">新增资产</h3><button class="close-btn" onclick="closeModal('assetModal')">&times;</button></div>
+<div class="modal-body">
+<form id="assetForm">
+<input type="hidden" id="editAssetCode">
+<div class="form-row">
+<div class="form-group"><label>资产编号 *</label><input type="text" id="asset_code" required></div>
+<div class="form-group"><label>资产名称 *</label><input type="text" id="asset_name" required></div>
+<div class="form-group"><label>资产分类 *</label><select id="category" required><option>IT设备</option><option>办公家具</option><option>车辆</option><option>生产设备</option><option>仪器仪表</option><option>其他</option></select></div>
+</div>
+<div class="form-row">
+<div class="form-group"><label>规格型号</label><input type="text" id="spec_model"></div>
+<div class="form-group"><label>序列号/SN</label><input type="text" id="serial_no"></div>
+<div class="form-group"><label>品牌</label><input type="text" id="brand"></div>
+</div>
+<div class="form-row">
+<div class="form-group"><label>购入日期 *</label><input type="date" id="purchase_date" required></div>
+<div class="form-group"><label>购入价格 *</label><input type="number" id="purchase_price" step="0.01" required></div>
+<div class="form-group"><label>使用部门 *</label><input type="text" id="department" required></div>
+</div>
+<div class="form-row">
+<div class="form-group"><label>使用人</label><input type="text" id="current_user"></div>
+<div class="form-group"><label>存放地点 *</label><input type="text" id="location" placeholder="如：A栋-3层-301" required></div>
+<div class="form-group"><label>资产状态 *</label><select id="status" required><option value="在用">在用</option><option value="闲置">闲置</option><option value="维修">维修</option><option value="报废">报废</option></select></div>
+</div>
+<div class="form-row">
+<div class="form-group"><label>供应商</label><input type="text" id="supplier"></div>
+<div class="form-group"><label>使用期限(月)</label><input type="number" id="useful_life_months"></div>
+<div class="form-group"><label>折旧方法</label><select id="depreciation_method"><option value="">请选择</option><option value="直线">直线</option><option value="双倍余额">双倍余额</option></select></div>
+</div>
+<div class="form-row">
+<div class="form-group"><label>累计折旧</label><input type="number" id="accumulated_depreciation" step="0.01"></div>
+<div class="form-group"><label>净值</label><input type="number" id="net_value" step="0.01"></div>
+<div class="form-group"><label>责任人 *</label><input type="text" id="responsible_person" required></div>
+</div>
+<div class="form-row">
+<div class="form-group"><label>入账日期</label><input type="date" id="book_date"></div>
+<div class="form-group"><label>凭证号</label><input type="text" id="voucher_no"></div>
+<div class="form-group"><label>照片URL</label><input type="text" id="photo_url"></div>
+</div>
+<div class="form-group"><label>备注</label><textarea id="remarks" rows="3"></textarea></div>
+</form>
+</div>
+<div class="modal-footer">
+<button type="button" class="btn btn-secondary" onclick="closeModal('assetModal')">取消</button>
+<button type="button" class="btn btn-primary" id="saveAssetBtn" onclick="saveAsset()">保存</button>
+</div>
+</div>
+</div>
+
+<!-- Task Modal -->
+<div class="modal" id="taskModal">
+<div class="modal-content" style="max-width: 500px;">
+<div class="modal-header"><h3>新建盘点任务</h3><button class="close-btn" onclick="closeModal('taskModal')">&times;</button></div>
+<div class="modal-body">
+<div class="form-group"><label>任务ID</label><input type="text" id="task_id" readonly></div>
+<div class="form-group"><label>任务名称</label><input type="text" id="task_name" placeholder="如：2024年度年终盘点"></div>
+<div class="form-group"><label>开始日期</label><input type="date" id="task_start"></div>
+<div class="form-group"><label>结束日期</label><input type="date" id="task_end"></div>
+</div>
+<div class="modal-footer">
+<button type="button" class="btn btn-secondary" onclick="closeModal('taskModal')">取消</button>
+<button type="button" class="btn btn-primary" onclick="saveTask()">创建</button>
+</div>
+</div>
+</div>
+
+<!-- QR Preview -->
+<div class="qr-preview-area" id="qrPreviewArea">
+<div class="qr-controls">
+<button class="btn btn-primary" onclick="printQR()">打印</button>
+<button class="btn btn-success" onclick="downloadQRPDF()">下载PDF</button>
+<button class="btn btn-secondary" onclick="closeQRPreview()">关闭</button>
+</div>
+<div class="qr-sheet" id="qrSheet"></div>
+</div>
+</div>
+
+<!-- Scan Page -->
+<div id="scanPage" class="scan-page">
+<div class="scan-header"><h1>固定资产盘点</h1><p>扫码核对 · 确认盘点</p></div>
+<div id="scanContent">
+<div class="loading"><div class="spinner"></div><p>正在加载...</p></div>
+</div>
+<div class="float-btn" id="scanActionBar" style="display:none;">
+<button class="btn btn-secondary" onclick="backToAdmin()">返回首页</button>
+<button class="btn btn-primary" id="confirmBtn" onclick="confirmInventory()">确认盘点</button>
+</div>
+</div>
+
+<script>
+// ===================== IndexedDB =====================
+const DB_NAME = 'AssetDB';
+const DB_VERSION = 1;
+
+class AssetDB {
+constructor() { this.db = null; }
+async init() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB_NAME, DB_VERSION);
+    req.onerror = () => reject(req.error);
+    req.onsuccess = () => { this.db = req.result; resolve(); };
+    req.onupgradeneeded = (e) => {
+      const db = e.target.result;
+      if (!db.objectStoreNames.contains('assets')) {
+        const s = db.createObjectStore('assets', { keyPath: 'asset_code' });
+        s.createIndex('department', 'department', { unique: false });
+        s.createIndex('status', 'status', { unique: false });
+      }
+      if (!db.objectStoreNames.contains('inventory_records')) db.createObjectStore('inventory_records', { autoIncrement: true });
+      if (!db.objectStoreNames.contains('inventory_tasks')) db.createObjectStore('inventory_tasks', { keyPath: 'task_id' });
+    };
+  });
+}
+_getStore(name, mode = 'readonly') { return this.db.transaction(name, mode).objectStore(name); }
+
+async getAllAssets() { return new Promise((r, j) => { const s = this._getStore('assets'); const req = s.getAll(); req.onsuccess = () => r(req.result); req.onerror = () => j(req.error); }); }
+async getAsset(code) { return new Promise((r, j) => { const s = this._getStore('assets'); const req = s.get(code); req.onsuccess = () => r(req.result); req.onerror = () => j(req.error); }); }
+async putAsset(asset) { return new Promise((r, j) => { const s = this._getStore('assets', 'readwrite'); const req = s.put(asset); req.onsuccess = () => r(); req.onerror = () => j(req.error); }); }
+async deleteAsset(code) { return new Promise((r, j) => { const s = this._getStore('assets', 'readwrite'); const req = s.delete(code); req.onsuccess = () => r(); req.onerror = () => j(req.error); }); }
+
+async getAllTasks() { return new Promise((r, j) => { const s = this._getStore('inventory_tasks'); const req = s.getAll(); req.onsuccess = () => r(req.result); req.onerror = () => j(req.error); }); }
+async putTask(task) { return new Promise((r, j) => { const s = this._getStore('inventory_tasks', 'readwrite'); const req = s.put(task); req.onsuccess = () => r(); req.onerror = () => j(req.error); }); }
+
+async getAllRecords() { return new Promise((r, j) => { const s = this._getStore('inventory_records'); const req = s.getAll(); req.onsuccess = () => r(req.result); req.onerror = () => j(req.error); }); }
+async addRecord(record) { return new Promise((r, j) => { const s = this._getStore('inventory_records', 'readwrite'); const req = s.add(record); req.onsuccess = () => r(req.result); req.onerror = () => j(req.error); }); }
+}
+const db = new AssetDB();
+
+// ===================== Crypto =====================
+class CryptoUtil {
+constructor() { this.key = null; }
+async init(password = 'gudingzichan2024') {
+  const enc = new TextEncoder();
+  const keyMaterial = await crypto.subtle.importKey('raw', enc.encode(password), 'PBKDF2', false, ['deriveKey']);
+  this.key = await crypto.subtle.deriveKey(
+    { name: 'PBKDF2', salt: enc.encode('fixed-salt'), iterations: 100000, hash: 'SHA-256' },
+    keyMaterial, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']
+  );
+}
+async encrypt(data) {
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const encoded = new TextEncoder().encode(JSON.stringify(data));
+  const ciphertext = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, this.key, encoded);
+  const combined = new Uint8Array(iv.length + ciphertext.byteLength);
+  combined.set(iv); combined.set(new Uint8Array(ciphertext), iv.length);
+  return btoa(String.fromCharCode(...combined)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+}
+async decrypt(token) {
+  const pad = (s) => s + '='.repeat((4 - s.length % 4) % 4);
+  const data = Uint8Array.from(atob(pad(token.replace(/-/g, '+').replace(/_/g, '/'))), c => c.charCodeAt(0));
+  const iv = data.slice(0, 12); const ciphertext = data.slice(12);
+  const plaintext = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, this.key, ciphertext);
+  return JSON.parse(new TextDecoder().decode(plaintext));
+}
+}
+const cryptoUtil = new CryptoUtil();
+
+// ===================== State =====================
+let assets = [];
+let currentPage = 1;
+const pageSize = 10;
+let selectedAssets = new Set();
+let tasks = [];
+let records = [];
+
+// ===================== Router =====================
+function handleRoute() {
+  const params = new URLSearchParams(window.location.search);
+  const scanToken = params.get('s');
+  if (scanToken) {
+    document.getElementById('adminPage').style.display = 'none';
+    document.getElementById('scanPage').classList.add('active');
+    loadScanPage(scanToken);
+  } else {
+    document.getElementById('adminPage').style.display = 'block';
+    document.getElementById('scanPage').classList.remove('active');
+    loadAssets();
+    loadTasks();
+  }
+}
+
+function backToAdmin() {
+  const url = new URL(window.location.href);
+  url.search = '';
+  window.history.replaceState({}, '', url);
+  handleRoute();
+}
+
+// ===================== Init =====================
+document.addEventListener('DOMContentLoaded', async () => {
+  await db.init();
+  await cryptoUtil.init();
+  handleRoute();
+  window.addEventListener('popstate', handleRoute);
+
+  // Tabs
+  document.querySelectorAll('.tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
+    });
+  });
+
+  // Init task dates
+  document.getElementById('task_id').value = 'TASK-' + Date.now();
+  document.getElementById('task_start').value = new Date().toISOString().split('T')[0];
+  document.getElementById('task_end').value = new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0];
+});
+
+// ===================== Assets CRUD =====================
+async function loadAssets() {
+  assets = await db.getAllAssets();
+  updateStats();
+  renderTable();
+  updateDeptFilter();
+}
+
+function updateStats() {
+  document.getElementById('stat-total').textContent = assets.length;
+  document.getElementById('stat-inuse').textContent = assets.filter(a => a.status === '在用').length;
+  document.getElementById('stat-idle').textContent = assets.filter(a => a.status === '闲置').length;
+  const totalValue = assets.reduce((sum, a) => sum + (parseFloat(a.purchase_price) || 0), 0);
+  document.getElementById('stat-value').textContent = (totalValue / 10000).toFixed(2);
+}
+
+function updateDeptFilter() {
+  const depts = [...new Set(assets.map(a => a.department))];
+  const sel = document.getElementById('deptFilter');
+  sel.innerHTML = '<option value="">全部部门</option>' + depts.map(d => `<option value="${d}">${d}</option>`).join('');
+}
+
+function getFilteredAssets() {
+  const search = document.getElementById('searchInput').value.toLowerCase();
+  const dept = document.getElementById('deptFilter').value;
+  const status = document.getElementById('statusFilter').value;
+  return assets.filter(a => {
+    if (search && !a.asset_code?.toLowerCase().includes(search) && !a.asset_name?.toLowerCase().includes(search)) return false;
+    if (dept && a.department !== dept) return false;
+    if (status && a.status !== status) return false;
+    return true;
+  });
+}
+
+function renderTable() {
+  const filtered = getFilteredAssets();
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const start = (currentPage - 1) * pageSize;
+  const pageData = filtered.slice(start, start + pageSize);
+
+  const tbody = document.getElementById('assetTable');
+  tbody.innerHTML = pageData.map(a => `
+    <tr>
+      <td class="checkbox-col"><input type="checkbox" ${selectedAssets.has(a.asset_code) ? 'checked' : ''} onchange="toggleSelect('${a.asset_code}')"></td>
+      <td>${a.asset_code}</td><td>${a.asset_name}</td><td>${a.category}</td><td>${a.department}</td>
+      <td>${a.location}</td><td>${getStatusTag(a.status)}</td><td>${a.responsible_person}</td>
+      <td>${a.purchase_price || 0}</td>
+      <td>
+        <button class="btn btn-primary" style="padding:4px 8px;font-size:12px;" onclick="generateSingleQR('${a.asset_code}')">二维码</button>
+        <button class="btn btn-warning" style="padding:4px 8px;font-size:12px;" onclick="editAsset('${a.asset_code}')">编辑</button>
+        <button class="btn btn-danger" style="padding:4px 8px;font-size:12px;" onclick="deleteAsset('${a.asset_code}')">删除</button>
+      </td>
+    </tr>
+  `).join('');
+}
+
+function getStatusTag(status) {
+  const map = { '在用': '<span class="tag tag-success">在用</span>', '闲置': '<span class="tag tag-info">闲置</span>', '维修': '<span class="tag tag-warning">维修</span>', '报废': '<span class="tag tag-danger">报废</span>' };
+  return map[status] || status;
+}
+
+function toggleSelect(code) { if (selectedAssets.has(code)) selectedAssets.delete(code); else selectedAssets.add(code); }
+function toggleSelectAll() { const checked = document.getElementById('selectAll').checked; const filtered = getFilteredAssets(); if (checked) filtered.forEach(a => selectedAssets.add(a.asset_code)); else filtered.forEach(a => selectedAssets.delete(a.asset_code)); renderTable(); }
+
+function openAssetModal() { document.getElementById('assetForm').reset(); document.getElementById('editAssetCode').value = ''; document.getElementById('modalTitle').textContent = '新增资产'; document.getElementById('assetModal').classList.add('active'); }
+function closeModal(id) { document.getElementById(id).classList.remove('active'); }
+
+async function saveAsset() {
+  try {
+    const form = document.getElementById('assetForm');
+    if (!form.checkValidity()) { form.reportValidity(); return; }
+    const btn = document.getElementById('saveAssetBtn');
+    btn.disabled = true; btn.textContent = '保存中...';
+
+    const data = {};
+    const skip = ['editAssetCode'];
+    form.querySelectorAll('input, select, textarea').forEach(el => {
+      if (!el.id || skip.includes(el.id)) return;
+      if (el.value === '' || el.value === null) return;
+      if (el.type === 'number' && el.value !== '') { const n = parseFloat(el.value); if (!isNaN(n)) data[el.id] = n; }
+      else data[el.id] = el.value;
+    });
+    data.created_at = data.created_at || new Date().toISOString();
+    data.updated_at = new Date().toISOString();
+
+    await db.putAsset(data);
+    closeModal('assetModal');
+    await loadAssets();
+    alert('保存成功');
+  } catch (e) {
+    alert('保存失败: ' + e.message);
+  } finally {
+    const btn = document.getElementById('saveAssetBtn');
+    if (btn) { btn.disabled = false; btn.textContent = '保存'; }
+  }
+}
+
+async function editAsset(code) {
+  const a = await db.getAsset(code);
+  if (!a) return;
+  document.getElementById('editAssetCode').value = code;
+  document.getElementById('modalTitle').textContent = '编辑资产';
+  Object.keys(a).forEach(key => { const el = document.getElementById(key); if (el) el.value = a[key] || ''; });
+  document.getElementById('assetModal').classList.add('active');
+}
+
+async function deleteAsset(code) {
+  if (!confirm('确认删除？')) return;
+  await db.deleteAsset(code);
+  await loadAssets();
+}
+
+// ===================== QR Code =====================
+// Minify asset for QR code: only essential fields to keep URL short
+function minifyAsset(asset) {
+  return {
+    c: asset.asset_code,      // code
+    n: asset.asset_name,      // name
+    g: asset.category,        // category
+    d: asset.department,      // department
+    l: asset.location,        // location
+    s: asset.status,          // status
+    p: asset.responsible_person, // person
+    pd: asset.purchase_date,  // purchase date
+    pp: asset.purchase_price, // purchase price
+    sp: asset.spec_model,     // spec
+    br: asset.brand           // brand
+  };
+}
+
+async function generateSingleQR(code) {
+  const asset = await db.getAsset(code);
+  if (!asset) return;
+  const mini = minifyAsset(asset);
+  const token = await cryptoUtil.encrypt(mini);
+  const baseUrl = window.location.origin + window.location.pathname;
+  const url = baseUrl + '?s=' + encodeURIComponent(token);
+  selectedAssets = new Set([code]);
+  showQRPreview([{ asset_code: code, asset_name: asset.asset_name, department: asset.department, location: asset.location, url }]);
+}
+
+async function batchGenerateQR() {
+  if (selectedAssets.size === 0) { alert('请先勾选资产'); return; }
+  const items = [];
+  for (const code of selectedAssets) {
+    const asset = await db.getAsset(code);
+    if (asset) {
+      const mini = minifyAsset(asset);
+      const token = await cryptoUtil.encrypt(mini);
+      const baseUrl = window.location.origin + window.location.pathname;
+      items.push({ asset_code: code, asset_name: asset.asset_name, department: asset.department, location: asset.location, url: baseUrl + '?s=' + encodeURIComponent(token) });
+    }
+  }
+  showQRPreview(items);
+}
+
+function showQRPreview(items) {
+  const sheet = document.getElementById('qrSheet');
+  sheet.innerHTML = '';
+  items.forEach(item => {
+    const label = document.createElement('div');
+    label.className = 'qr-label';
+    label.innerHTML = `
+      <div class="label-header">
+        <div class="label-title">固定资产标签</div>
+        <table class="label-table">
+          <tr><td>资产编号</td><td>${item.asset_code}</td></tr>
+          <tr><td>资产名称</td><td>${item.asset_name || '-'}</td></tr>
+          <tr><td>管理部门</td><td>${item.department || '-'}</td></tr>
+          <tr><td>存放地点</td><td>${item.location || '-'}</td></tr>
+        </table>
+      </div>
+      <div class="qr-wrap" id="qr-${item.asset_code}"></div>
+    `;
+    sheet.appendChild(label);
+    setTimeout(() => {
+      new QRCode(document.getElementById(`qr-${item.asset_code}`), { text: item.url, width: 160, height: 160, colorDark: '#000', colorLight: '#fff', correctLevel: QRCode.CorrectLevel.H });
+    }, 50);
+  });
+  document.getElementById('qrPreviewArea').classList.add('active');
+}
+function closeQRPreview() { document.getElementById('qrPreviewArea').classList.remove('active'); }
+function printQR() { window.print(); }
+
+async function downloadQRPDF() {
+  const { jsPDF } = window.jspdf;
+  const sheet = document.getElementById('qrSheet');
+  const canvas = await html2canvas(sheet, { scale: 2 });
+  const imgData = canvas.toDataURL('image/png');
+  const pdf = new jsPDF('p', 'mm', 'a4');
+  const imgWidth = 210;
+  const imgHeight = (canvas.height * imgWidth) / canvas.width;
+  pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
+  pdf.save('asset-qr-labels.pdf');
+}
+
+// ===================== Scan Page =====================
+async function loadScanPage(token) {
+  const content = document.getElementById('scanContent');
+  const actionBar = document.getElementById('scanActionBar');
+  try {
+    const payload = await cryptoUtil.decrypt(token);
+    // Unified: map minified fields to full names
+    let a = payload;
+    if (payload.c) {
+      // Minified format from QR code
+      a = {
+        asset_code: payload.c, asset_name: payload.n, category: payload.g,
+        department: payload.d, location: payload.l, status: payload.s,
+        responsible_person: payload.p, purchase_date: payload.pd,
+        purchase_price: payload.pp, spec_model: payload.sp, brand: payload.br
+      };
+    } else if (payload.a) {
+      a = await db.getAsset(payload.a);
+    }
+    if (!a || !a.asset_code) throw new Error('Asset not found');
+
+    const statusMap = { '在用': 'status-IN_USE', '闲置': 'status-IDLE', '维修': 'status-REPAIR', '报废': 'status-SCRAPPED' };
+    const s = statusMap[a.status] || '';
+
+    content.innerHTML = `
+      <div class="scan-card"><div class="scan-card-header"><span class="scan-code">${a.asset_code}</span><span class="tag ${s}">${a.status}</span></div>
+      <div class="scan-body">
+        <div class="info-row"><span class="info-label">资产名称</span><span class="info-value">${a.asset_name}</span></div>
+        <div class="info-row"><span class="info-label">分类</span><span class="info-value">${a.category}</span></div>
+        <div class="info-row"><span class="info-label">规格型号</span><span class="info-value">${a.spec_model || '-'}</span></div>
+        <div class="info-row"><span class="info-label">品牌</span><span class="info-value">${a.brand || '-'}</span></div>
+        <div class="info-row"><span class="info-label">购入日期</span><span class="info-value">${a.purchase_date || '-'}</span></div>
+        <div class="info-row"><span class="info-label">购入价格</span><span class="info-value">${a.purchase_price || '-'}</span></div>
+      </div></div>
+      <div class="section-title">存放与责任人</div>
+      <div class="scan-card"><div class="scan-body">
+        <div class="info-row"><span class="info-label">使用部门</span><span class="info-value">${a.department}</span></div>
+        <div class="info-row"><span class="info-label">责任人</span><span class="info-value">${a.responsible_person}</span></div>
+        <div class="info-row"><span class="info-label">台账存放地点</span><span class="info-value" id="bookLocation">${a.location}</span></div>
+      </div></div>
+      <div class="section-title">盘点确认</div>
+      <div class="confirm-box">
+        <div class="notice">请核对资产实际信息，如有差异请在下方填写实际情况。</div>
+        <div class="form-group"><label>盘点人姓名 *</label><input type="text" id="inventoryPerson" placeholder="请输入您的姓名"></div>
+        <div class="form-group"><label>实际存放地点 *</label><input type="text" id="actualLocation" value="${a.location}"></div>
+        <div class="form-group"><label>盘点任务</label><select id="scanTaskSelect"><option value="">选择盘点任务（可选）</option></select></div>
+      </div>
+    `;
+    actionBar.style.display = 'flex';
+    document.getElementById('confirmBtn').dataset.assetCode = a.asset_code;
+    document.getElementById('confirmBtn').dataset.location = a.location;
+
+    // Load tasks
+    const tasks = await db.getAllTasks();
+    const sel = document.getElementById('scanTaskSelect');
+    if (sel) sel.innerHTML = '<option value="">选择盘点任务（可选）</option>' + tasks.filter(t => t.status === '进行中').map(t => `<option value="${t.task_id}">${t.task_name}</option>`).join('');
+  } catch (e) {
+    content.innerHTML = `<div class="error-box"><div style="font-size:48px;margin-bottom:10px;">&#9888;</div><p style="color:#ff4d4f;font-size:16px;">无效二维码或已过期</p><p style="margin-top:15px;color:#999;font-size:13px;">${e.message}</p></div>`;
+    actionBar.style.display = 'flex';
+    document.getElementById('confirmBtn').style.display = 'none';
+  }
+}
+
+async function confirmInventory() {
+  const person = document.getElementById('inventoryPerson')?.value.trim();
+  const location = document.getElementById('actualLocation')?.value.trim();
+  const taskId = document.getElementById('scanTaskSelect')?.value || '';
+  const btn = document.getElementById('confirmBtn');
+  const assetCode = btn.dataset.assetCode;
+  const originalLocation = btn.dataset.location;
+  if (!person) { alert('请输入盘点人姓名'); return; }
+  if (!location) { alert('请输入实际存放地点'); return; }
+
+  const status = originalLocation === location ? '正常' : '位置不符';
+
+  await db.addRecord({
+    asset_code: assetCode, inventory_person: person, inventory_time: new Date().toISOString(),
+    original_location: originalLocation, actual_location: location, status, task_id: taskId || null
+  });
+
+  document.getElementById('scanContent').innerHTML = `
+    <div class="success-box"><div style="font-size:48px;color:#52c41a;margin-bottom:10px;">&#10004;</div>
+    <p style="font-size:16px;color:#333;">盘点成功！${status === '位置不符' ? '（发现位置不符）' : ''}</p>
+    <p style="margin-top:10px;color:#999;font-size:13px;">您可以关闭页面或返回首页</p></div>
+  `;
+  document.getElementById('scanActionBar').innerHTML = `<button class="btn btn-secondary" onclick="backToAdmin()">返回首页</button><button class="btn btn-primary" onclick="window.location.reload()">继续盘点</button>`;
+}
+
+// ===================== Tasks =====================
+async function loadTasks() {
+  tasks = await db.getAllTasks();
+  document.getElementById('taskTable').innerHTML = tasks.map(t => `
+    <tr><td>${t.task_id}</td><td>${t.task_name}</td><td>${t.start_date}</td><td>${t.end_date}</td>
+    <td><span class="tag ${t.status === '进行中' ? 'tag-success' : 'tag-secondary'}">${t.status}</span></td>
+    <td><button class="btn btn-primary" style="padding:4px 8px;font-size:12px;" onclick="viewTaskReport('${t.task_id}')">查看</button></td></tr>
+  `).join('');
+
+  const sel = document.getElementById('reportTaskSelect');
+  sel.innerHTML = '<option value="">选择盘点任务</option>' + tasks.map(t => `<option value="${t.task_id}">${t.task_name} (${t.task_id})</option>`).join('');
+}
+
+function openTaskModal() { document.getElementById('taskModal').classList.add('active'); }
+async function saveTask() {
+  const task = {
+    task_id: document.getElementById('task_id').value,
+    task_name: document.getElementById('task_name').value,
+    start_date: document.getElementById('task_start').value,
+    end_date: document.getElementById('task_end').value,
+    status: '进行中'
+  };
+  if (!task.task_name || !task.start_date || !task.end_date) { alert('请填写完整信息'); return; }
+  await db.putTask(task);
+  closeModal('taskModal');
+  await loadTasks();
+}
+function viewTaskReport(taskId) { document.querySelector('.tab[data-tab="reports"]').click(); document.getElementById('reportTaskSelect').value = taskId; generateReport(); }
+
+// ===================== Reports =====================
+async function generateReport() {
+  const taskId = document.getElementById('reportTaskSelect').value;
+  if (!taskId) { alert('请选择盘点任务'); return; }
+  const allAssets = await db.getAllAssets();
+  const allRecords = await db.getAllRecords();
+  const taskRecords = allRecords.filter(r => r.task_id === taskId);
+  const checkedMap = new Map(taskRecords.map(r => [r.asset_code, r]));
+
+  const diffItems = [];
+  for (const asset of allAssets) {
+    const rec = checkedMap.get(asset.asset_code);
+    if (!rec) {
+      diffItems.push({ asset_code: asset.asset_code, asset_name: asset.asset_name, diff_type: '盘亏', book_value: asset.net_value || asset.purchase_price, expected_location: asset.location, actual_location: null });
+    } else if (rec.status === '位置不符') {
+      diffItems.push({ asset_code: asset.asset_code, asset_name: asset.asset_name, diff_type: '位置不符', book_value: asset.net_value || asset.purchase_price, expected_location: asset.location, actual_location: rec.actual_location });
+    }
+  }
+  const assetCodes = new Set(allAssets.map(a => a.asset_code));
+  for (const rec of taskRecords) {
+    if (!assetCodes.has(rec.asset_code)) {
+      diffItems.push({ asset_code: rec.asset_code, asset_name: '未知资产', diff_type: '盘盈', book_value: null, expected_location: null, actual_location: rec.actual_location });
+    }
+  }
+
+  const content = document.getElementById('reportContent');
+  content.innerHTML = `
+    <div class="card"><h3 style="margin-bottom:12px;">差异报告 - ${taskId}</h3>
+    <p>资产总数: ${allAssets.length} | 已盘点: ${taskRecords.length} | 差异数: ${diffItems.length}</p>
+    <p>生成时间: ${new Date().toLocaleString()}</p>
+    <div style="margin-top:12px;"><button class="btn btn-success" onclick="exportDiffReport()">导出Excel</button></div>
+    <table style="margin-top:12px;"><thead><tr><th>资产编号</th><th>资产名称</th><th>差异类型</th><th>账面净值</th><th>台账地点</th><th>实际地点</th></tr></thead>
+    <tbody>${diffItems.map(item => `<tr><td>${item.asset_code}</td><td>${item.asset_name}</td><td>${getDiffTag(item.diff_type)}</td><td>${item.book_value || '-'}</td><td>${item.expected_location || '-'}</td><td>${item.actual_location || '-'}</td></tr>`).join('')}</tbody>
+    </table></div>
+  `;
+  window._diffReport = { taskId, diffItems };
+}
+
+function getDiffTag(type) {
+  const map = { '盘盈': '<span class="tag tag-success">盘盈</span>', '盘亏': '<span class="tag tag-danger">盘亏</span>', '位置不符': '<span class="tag tag-warning">位置不符</span>' };
+  return map[type] || type;
+}
+
+// ===================== Excel =====================
+function exportTemplate() {
+  const headers = ['asset_code','asset_name','category','spec_model','serial_no','brand','purchase_date','purchase_price','department','current_user','location','status','supplier','useful_life_months','depreciation_method','accumulated_depreciation','net_value','responsible_person','book_date','voucher_no','remarks'];
+  const sample = ['FA20260001','联想笔记本','IT设备','ThinkPad T14','SN123456','联想','2024-01-15',6500,'技术部','张三','A栋-3层-301','在用','京东',36,'直线',1083.33,5416.67,'李四','2024-01-20','PZ-2024-001','新员工配发'];
+  const ws = XLSX.utils.aoa_to_sheet([headers, sample]);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Template');
+  XLSX.writeFile(wb, 'asset_import_template.xlsx');
+}
+
+function exportAssets() {
+  const data = assets.map(a => ({
+    资产编号: a.asset_code, 资产名称: a.asset_name, 分类: a.category, 规格型号: a.spec_model,
+    序列号: a.serial_no, 品牌: a.brand, 购入日期: a.purchase_date, 购入价格: a.purchase_price,
+    部门: a.department, 使用人: a.current_user, 存放地点: a.location, 状态: a.status,
+    责任人: a.responsible_person, 净值: a.net_value
+  }));
+  const ws = XLSX.utils.json_to_sheet(data);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Assets');
+  XLSX.writeFile(wb, `assets_${new Date().toISOString().split('T')[0]}.xlsx`);
+}
+
+function exportDiffReport() {
+  const r = window._diffReport;
+  if (!r) return;
+  const data = r.diffItems.map(i => ({
+    资产编号: i.asset_code, 资产名称: i.asset_name, 差异类型: i.diff_type,
+    账面净值: i.book_value, 台账地点: i.expected_location, 实际地点: i.actual_location
+  }));
+  const ws = XLSX.utils.json_to_sheet(data);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'DiffReport');
+  XLSX.writeFile(wb, `diff_report_${r.taskId}.xlsx`);
+}
+
+async function importExcel(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const data = await file.arrayBuffer();
+  const wb = XLSX.read(data, { type: 'array' });
+  const ws = wb.Sheets[wb.SheetNames[0]];
+  const rows = XLSX.utils.sheet_to_json(ws, { header: 1 });
+  const headers = rows[0];
+  let success = 0, failed = 0, errors = [];
+
+  for (let i = 1; i < rows.length; i++) {
+    const row = rows[i];
+    if (!row[0]) continue;
+    try {
+      const asset = {};
+      headers.forEach((h, idx) => {
+        if (!h) return;
+        let v = row[idx];
+        if (h === 'purchase_date' && v) {
+          if (typeof v === 'number') {
+            const d = new Date((v - 25569) * 86400 * 1000);
+            v = d.toISOString().split('T')[0];
+          }
+        }
+        if (['purchase_price','accumulated_depreciation','net_value'].includes(h) && v) v = parseFloat(v);
+        if (h === 'useful_life_months' && v) v = parseInt(v);
+        asset[h] = v;
+      });
+      asset.created_at = asset.created_at || new Date().toISOString();
+      asset.updated_at = new Date().toISOString();
+      await db.putAsset(asset);
+      success++;
+    } catch (e) { failed++; errors.push(`Row ${i + 1}: ${e.message}`); }
+  }
+  alert(`Import: ${success} success, ${failed} failed\n${errors.slice(0, 5).join('\n')}`);
+  await loadAssets();
+  input.value = '';
+}
+</script>
+</body>
+</html>
