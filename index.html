@@ -8,19 +8,22 @@
 <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="./cloudbase.full.js"></script>
+
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f6fa; color: #333; line-height: 1.5; }
 .container { max-width: 1400px; margin: 0 auto; padding: 16px; }
-header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 10px; margin-bottom: 20px; text-align: center; }
-header h1 { font-size: 22px; margin-bottom: 5px; }
-header p { opacity: 0.9; font-size: 13px; }
+header { background: #fff; color: #333; padding: 16px 20px; border-radius: 10px; margin-bottom: 20px; border: 1px solid #e8f4fc; box-shadow: 0 2px 8px rgba(0,116,183,0.08); display: flex; align-items: center; justify-content: flex-start; gap: 16px; }
+header img { height: 52px; }
+header h1 { font-size: 22px; margin-bottom: 4px; color: #0074b7; }
+header p { color: #5a9fd4; font-size: 13px; }
 .btn { padding: 8px 16px; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; transition: all 0.2s; display: inline-block; }
-.btn-primary { background: #667eea; color: white; }
-.btn-success { background: #52c41a; color: white; }
-.btn-warning { background: #faad14; color: white; }
-.btn-danger { background: #ff4d4f; color: white; }
-.btn-secondary { background: #d9d9d9; color: #333; }
+.btn-primary { background: #0074b7; color: white; }
+.btn-success { background: #0074b7; color: white; }
+.btn-warning { background: #0074b7; color: white; }
+.btn-danger { background: #dc3545; color: white; }
+.btn-secondary { background: #e8f4fc; color: #0074b7; }
 .toolbar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; align-items: center; }
 .search-box { padding: 8px 12px; border: 1px solid #d9d9d9; border-radius: 6px; font-size: 13px; }
 select.search-box { min-width: 130px; }
@@ -49,11 +52,11 @@ tr:hover { background: #f5f5f5; }
 .checkbox-col { width: 40px; text-align: center; }
 .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
 .stat-card { background: white; padding: 16px; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); text-align: center; }
-.stat-value { font-size: 26px; font-weight: bold; color: #667eea; }
+.stat-value { font-size: 26px; font-weight: bold; color: #0074b7; }
 .stat-label { font-size: 12px; color: #666; margin-top: 4px; }
 .tabs { display: flex; gap: 4px; margin-bottom: 16px; border-bottom: 2px solid #f0f0f0; }
 .tab { padding: 10px 20px; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -2px; font-size: 14px; }
-.tab.active { border-bottom-color: #667eea; color: #667eea; font-weight: 600; }
+.tab.active { border-bottom-color: #0074b7; color: #0074b7; font-weight: 600; }
 .tab-content { display: none; }
 .tab-content.active { display: block; }
 .qr-preview-area { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 2000; overflow-y: auto; }
@@ -74,11 +77,11 @@ tr:hover { background: #f5f5f5; }
 /* Scan page styles */
 .scan-page { display: none; }
 .scan-page.active { display: block; }
-.scan-header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px 16px; text-align: center; }
+.scan-header { background: #0074b7; color: white; padding: 20px 16px; text-align: center; }
 .scan-header h1 { font-size: 18px; font-weight: 600; }
 .scan-card { background: white; margin: 12px; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 12px rgba(0,0,0,0.06); }
 .scan-card-header { padding: 16px; border-bottom: 1px solid #f0f0f0; display: flex; justify-content: space-between; align-items: center; }
-.scan-code { font-size: 16px; font-weight: 600; color: #667eea; }
+.scan-code { font-size: 16px; font-weight: 600; color: #0074b7; }
 .scan-body { padding: 16px; }
 .info-row { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #f5f5f5; }
 .info-row:last-child { border-bottom: none; }
@@ -89,9 +92,37 @@ tr:hover { background: #f5f5f5; }
 .float-btn { position: fixed; bottom: 0; left: 0; right: 0; padding: 12px 16px; background: white; box-shadow: 0 -2px 10px rgba(0,0,0,0.05); display: flex; gap: 10px; z-index: 100; }
 .float-btn .btn { flex: 1; padding: 14px; font-size: 16px; }
 .loading, .error-box, .success-box { padding: 40px 20px; text-align: center; }
-.spinner { width: 40px; height: 40px; border: 3px solid #f3f3f3; border-top: 3px solid #667eea; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 15px; }
+.spinner { width: 40px; height: 40px; border: 3px solid #f3f3f3; border-top: 3px solid #0074b7; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 15px; }
 @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 .notice { background: #fffbe6; border: 1px solid #ffe58f; border-radius: 8px; padding: 10px 12px; font-size: 12px; color: #d48806; margin-bottom: 12px; }
+.task-list { display: flex; flex-direction: column; gap: 8px; }
+.task-item {
+  padding: 12px 14px;
+  border: 2px solid #e8f4fc;
+  border-radius: 8px;
+  background: #fff;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.task-item:active { transform: scale(0.98); }
+.task-item.selected { border-color: #0074b7; background: #e8f4fc; }
+.task-item .task-name { font-size: 14px; font-weight: 500; color: #333; }
+.task-item .task-date { font-size: 12px; color: #999; margin-top: 2px; }
+.task-item .check-icon {
+  width: 20px; height: 20px;
+  border: 2px solid #d9d9d9;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  color: transparent;
+  transition: all 0.2s;
+}
+.task-item.selected .check-icon { border-color: #0074b7; background: #0074b7; color: #fff; }
 </style>
 </head>
 <body>
@@ -100,14 +131,16 @@ tr:hover { background: #f5f5f5; }
 <div id="adminPage" class="admin-page">
 <div class="container">
 <header>
-<h1>固定资产盘点二维码系统</h1>
-<p>扫码即查 · 扫码即盘 · 自动比对 · 差异报告</p>
+<img src="https://www.ctg.com.cn/images/logo.png" alt="" onerror="this.style.display='none'">
+<div>
+<h1>固定资产盘点管理系统</h1>
+</div>
 </header>
 
 <div class="tabs">
 <div class="tab active" data-tab="assets">资产管理</div>
 <div class="tab" data-tab="inventory">盘点任务</div>
-<div class="tab" data-tab="reports">差异报告</div>
+<div class="tab" data-tab="reports">盘点报告</div>
 </div>
 
 <!-- Assets Tab -->
@@ -127,16 +160,19 @@ tr:hover { background: #f5f5f5; }
 <input type="file" id="importFile" accept=".xlsx,.xls" style="display:none" onchange="importExcel(this)">
 <button class="btn btn-secondary" onclick="exportTemplate()">下载模板</button>
 <button class="btn btn-secondary" onclick="exportAssets()">导出资产</button>
-<input type="text" class="search-box" id="searchInput" placeholder="搜索..." oninput="renderTable()">
+<button class="btn btn-secondary" onclick="exportAllData()">导出全部数据(JSON)</button>
+<button class="btn btn-secondary" onclick="document.getElementById('importJsonFile').click()">导入全部数据(JSON)</button>
+<input type="file" id="importJsonFile" accept=".json" style="display:none" onchange="importAllData(this)">
+<input type="text" class="search-box" id="searchInput" placeholder="搜索资产编号/名称/RFID..." oninput="renderTable()">
 <select class="search-box" id="deptFilter" onchange="renderTable()"><option value="">全部部门</option></select>
 <select class="search-box" id="statusFilter" onchange="renderTable()">
-<option value="">全部状态</option><option value="在用">在用</option><option value="闲置">闲置</option><option value="维修">维修</option><option value="报废">报废</option>
+<option value="">全部状态</option><option value="在用">在用</option><option value="闲置">闲置</option><option value="维修">维修</option><option value="报废">报废</option><option value="已盘点">已盘点</option>
 </select>
 </div>
 <table>
 <thead><tr>
 <th class="checkbox-col"><input type="checkbox" id="selectAll" onchange="toggleSelectAll()"></th>
-<th>资产编号</th><th>资产名称</th><th>分类</th><th>部门</th><th>存放地点</th><th>状态</th><th>责任人</th><th>购入价格</th><th>操作</th>
+<th>资产编号</th><th>资产名称</th><th>分类码描述</th><th>资产类码</th><th>使用单位</th><th>使用地点</th><th>状态</th><th>管理者</th><th>资产原值</th><th>RFID</th><th>操作</th>
 </tr></thead>
 <tbody id="assetTable"></tbody>
 </table>
@@ -148,9 +184,11 @@ tr:hover { background: #f5f5f5; }
 <div class="card">
 <div class="toolbar">
 <button class="btn btn-primary" onclick="openTaskModal()">+ 新建盘点任务</button>
+<select class="search-box" id="toolbarTaskSelect" style="min-width:180px;"><option value="">选择盘点任务</option></select>
+<button class="btn btn-primary" onclick="openAssignAssetModal()">为该任务分配资产</button>
 </div>
 <table>
-<thead><tr><th>任务ID</th><th>任务名称</th><th>开始日期</th><th>结束日期</th><th>状态</th><th>操作</th></tr></thead>
+<thead><tr><th>任务ID</th><th>任务名称</th><th>开始日期</th><th>结束日期</th><th>绑定盘点人</th><th>状态</th><th>操作</th></tr></thead>
 <tbody id="taskTable"></tbody>
 </table>
 </div>
@@ -161,7 +199,12 @@ tr:hover { background: #f5f5f5; }
 <div class="card">
 <div class="toolbar">
 <select class="search-box" id="reportTaskSelect"><option value="">选择盘点任务</option></select>
-<button class="btn btn-primary" onclick="generateReport()">生成差异报告</button>
+<select class="search-box" id="reportStatusFilter">
+<option value="全部">全部</option>
+<option value="盘点成功">盘点成功</option>
+<option value="未盘点">未盘点</option>
+</select>
+<button class="btn btn-primary" onclick="generateReport()">生成盘点报告</button>
 </div>
 <div id="reportContent"></div>
 </div>
@@ -178,36 +221,81 @@ tr:hover { background: #f5f5f5; }
 <div class="form-row">
 <div class="form-group"><label>资产编号 *</label><input type="text" id="asset_code" required></div>
 <div class="form-group"><label>资产名称 *</label><input type="text" id="asset_name" required></div>
-<div class="form-group"><label>资产分类 *</label><select id="category" required><option>IT设备</option><option>办公家具</option><option>车辆</option><option>生产设备</option><option>仪器仪表</option><option>其他</option></select></div>
+<div class="form-group"><label>资产类码</label><input type="text" id="asset_class_code" placeholder="如：101104"></div>
 </div>
 <div class="form-row">
-<div class="form-group"><label>规格型号</label><input type="text" id="spec_model"></div>
-<div class="form-group"><label>序列号/SN</label><input type="text" id="serial_no"></div>
+<div class="form-group"><label>分类码描述 *</label><input type="text" id="category" placeholder="如：台式计算机" required></div>
+<div class="form-group"><label>管理单元</label><input type="text" id="management_unit" placeholder="如：三峡物资招标管理有限公司(800)"></div>
+<div class="form-group"><label>取得方式</label><select id="acquisition_method"><option value="">请选择</option><option value="新购">新购</option><option value="调拨">调拨</option><option value="捐赠">捐赠</option><option value="自建">自建</option><option value="其他">其他</option></select></div>
+</div>
+<div class="form-row">
 <div class="form-group"><label>品牌</label><input type="text" id="brand"></div>
+<div class="form-group"><label>规格型号</label><input type="text" id="spec_model"></div>
+<div class="form-group"><label>出厂编号</label><input type="text" id="serial_no"></div>
 </div>
 <div class="form-row">
-<div class="form-group"><label>购入日期 *</label><input type="date" id="purchase_date" required></div>
-<div class="form-group"><label>购入价格 *</label><input type="number" id="purchase_price" step="0.01" required></div>
-<div class="form-group"><label>使用部门 *</label><input type="text" id="department" required></div>
+<div class="form-group"><label>购建日期 *</label><input type="date" id="purchase_date" required></div>
+<div class="form-group"><label>启用时间</label><input type="date" id="book_date"></div>
+<div class="form-group"><label>建卡时间</label><input type="date" id="card_date"></div>
 </div>
 <div class="form-row">
-<div class="form-group"><label>使用人</label><input type="text" id="current_user"></div>
-<div class="form-group"><label>存放地点 *</label><input type="text" id="location" placeholder="如：A栋-3层-301" required></div>
-<div class="form-group"><label>资产状态 *</label><select id="status" required><option value="在用">在用</option><option value="闲置">闲置</option><option value="维修">维修</option><option value="报废">报废</option></select></div>
+<div class="form-group"><label>使用单位 *</label><input type="text" id="department" required></div>
+<div class="form-group"><label>使用部门</label><input type="text" id="procurement_dept"></div>
+<div class="form-group"><label>归口管理</label><input type="text" id="custodian_dept"></div>
+</div>
+<div class="form-row">
+<div class="form-group"><label>管理者 *</label><input type="text" id="responsible_person" required></div>
+<div class="form-group"><label>使用者</label><input type="text" id="current_user"></div>
+<div class="form-group"><label>使用地点 *</label><input type="text" id="location" placeholder="如：湖北省襄阳市南漳县" required></div>
+</div>
+<div class="form-row">
+<div class="form-group"><label>资产原值 *</label><input type="number" id="purchase_price" step="0.01" required></div>
+<div class="form-group"><label>增值税</label><input type="number" id="vat" step="0.01"></div>
+<div class="form-group"><label>净值</label><input type="number" id="net_value" step="0.01"></div>
+</div>
+<div class="form-row">
+<div class="form-group"><label>安装费</label><input type="number" id="installation_fee" step="0.01"></div>
+<div class="form-group"><label>运杂费</label><input type="number" id="shipping_fee" step="0.01"></div>
+<div class="form-group"><label>其他费用</label><input type="number" id="other_fee" step="0.01"></div>
 </div>
 <div class="form-row">
 <div class="form-group"><label>供应商</label><input type="text" id="supplier"></div>
-<div class="form-group"><label>使用期限(月)</label><input type="number" id="useful_life_months"></div>
-<div class="form-group"><label>折旧方法</label><select id="depreciation_method"><option value="">请选择</option><option value="直线">直线</option><option value="双倍余额">双倍余额</option></select></div>
+<div class="form-group"><label>制造厂家</label><input type="text" id="manufacturer"></div>
+<div class="form-group"><label>合同代码</label><input type="text" id="contract_code"></div>
 </div>
 <div class="form-row">
-<div class="form-group"><label>累计折旧</label><input type="number" id="accumulated_depreciation" step="0.01"></div>
-<div class="form-group"><label>净值</label><input type="number" id="net_value" step="0.01"></div>
-<div class="form-group"><label>责任人 *</label><input type="text" id="responsible_person" required></div>
+<div class="form-group"><label>折旧状态</label><select id="depreciation_status"><option value="">请选择</option><option value="折旧">折旧</option><option value="不提折旧">不提折旧</option></select></div>
+<div class="form-group"><label>折旧方法</label><select id="depreciation_method"><option value="">请选择</option><option value="直线">直线</option><option value="双倍余额">双倍余额</option><option value="线性折旧">线性折旧</option></select></div>
+<div class="form-group"><label>折旧期限(月)</label><input type="number" id="useful_life_months"></div>
 </div>
 <div class="form-row">
-<div class="form-group"><label>入账日期</label><input type="date" id="book_date"></div>
+<div class="form-group"><label>残值率(%)</label><input type="number" id="residual_rate" step="0.01"></div>
+<div class="form-group"><label>月折旧率</label><input type="number" id="monthly_depreciation_rate" step="0.0001"></div>
+<div class="form-group"><label>月折旧额</label><input type="number" id="monthly_depreciation_amount" step="0.01"></div>
+</div>
+<div class="form-row">
+<div class="form-group"><label>资产状态 *</label><select id="status" required><option value="在用">在用</option><option value="闲置">闲置</option><option value="维修">维修</option><option value="报废">报废</option><option value="已盘点">已盘点</option></select></div>
+<div class="form-group"><label>可扫描</label><select id="scanable"><option value="">请选择</option><option value="是">是</option><option value="否">否</option></select></div>
+<div class="form-group"><label>RFID标签号</label><input type="text" id="rfid_tag" placeholder="扫描或输入RFID"></div>
+</div>
+<div class="form-row">
+<div class="form-group"><label>牌照号</label><input type="text" id="license_plate"></div>
+<div class="form-group"><label>出厂日期</label><input type="date" id="factory_date"></div>
+<div class="form-group"><label>设备代码</label><input type="text" id="equipment_code"></div>
+</div>
+<div class="form-row">
+<div class="form-group"><label>设备成组</label><input type="text" id="equipment_group"></div>
+<div class="form-group"><label>决算出项</label><input type="text" id="final_account"></div>
+<div class="form-group"><label>账套</label><input type="text" id="account_book"></div>
+</div>
+<div class="form-row">
 <div class="form-group"><label>凭证号</label><input type="text" id="voucher_no"></div>
+<div class="form-group"><label>核算项目</label><input type="text" id="accounting_item"></div>
+<div class="form-group"><label>核算科目</label><input type="text" id="accounting_subject"></div>
+</div>
+<div class="form-row">
+<div class="form-group"><label>验收单</label><input type="text" id="acceptance_doc"></div>
+<div class="form-group"><label>调拨单</label><input type="text" id="transfer_doc"></div>
 <div class="form-group"><label>照片URL</label><input type="text" id="photo_url"></div>
 </div>
 <div class="form-group"><label>备注</label><textarea id="remarks" rows="3"></textarea></div>
@@ -222,17 +310,34 @@ tr:hover { background: #f5f5f5; }
 
 <!-- Task Modal -->
 <div class="modal" id="taskModal">
-<div class="modal-content" style="max-width: 500px;">
+<div class="modal-content" style="max-width: 600px;">
 <div class="modal-header"><h3>新建盘点任务</h3><button class="close-btn" onclick="closeModal('taskModal')">&times;</button></div>
 <div class="modal-body">
 <div class="form-group"><label>任务ID</label><input type="text" id="task_id" readonly></div>
 <div class="form-group"><label>任务名称</label><input type="text" id="task_name" placeholder="如：2024年度年终盘点"></div>
 <div class="form-group"><label>开始日期</label><input type="date" id="task_start"></div>
 <div class="form-group"><label>结束日期</label><input type="date" id="task_end"></div>
+<div class="form-group"><label>绑定盘点人</label><input type="text" id="task_persons" placeholder="如：张三,李四,王五（多个用逗号分隔）"></div>
+<div class="form-group"><label>选择盘点资产</label><div id="taskAssetSelect" style="max-height:200px;overflow-y:auto;border:1px solid #d9d9d9;border-radius:6px;padding:8px;"><div class="notice" style="margin:0;">加载资产列表...</div></div></div>
 </div>
 <div class="modal-footer">
 <button type="button" class="btn btn-secondary" onclick="closeModal('taskModal')">取消</button>
 <button type="button" class="btn btn-primary" onclick="saveTask()">创建</button>
+</div>
+</div>
+</div>
+
+<!-- Assign Asset to Task Modal -->
+<div class="modal" id="assignAssetModal">
+<div class="modal-content" style="max-width: 600px;">
+<div class="modal-header"><h3>分配资产到盘点任务</h3><button class="close-btn" onclick="closeModal('assignAssetModal')">&times;</button></div>
+<div class="modal-body">
+<div class="form-group"><label>当前任务</label><input type="text" id="assignTaskId" readonly style="background:#f5f5f5;"></div>
+<div class="form-group"><label>选择资产</label><div id="assignAssetList" style="max-height:300px;overflow-y:auto;border:1px solid #d9d9d9;border-radius:6px;padding:8px;"><div class="notice" style="margin:0;">加载资产列表...</div></div></div>
+</div>
+<div class="modal-footer">
+<button type="button" class="btn btn-secondary" onclick="closeModal('assignAssetModal')">取消</button>
+<button type="button" class="btn btn-primary" onclick="saveAssignAssets()">保存</button>
 </div>
 </div>
 </div>
@@ -261,43 +366,133 @@ tr:hover { background: #f5f5f5; }
 </div>
 
 <script>
-// ===================== IndexedDB =====================
-const DB_NAME = 'AssetDB';
-const DB_VERSION = 1;
+// ===================== 腾讯云 CloudBase =====================
+class CloudBaseDB {
+  constructor(envId) {
+    this.app = cloudbase.init({ env: envId });
+    this.db = null;
+    this.authed = false;
+  }
+  async init() {
+    try {
+      await this.app.auth().signInAnonymously();
+      this.db = this.app.database();
+      this.authed = true;
+      console.log('CloudBase 登录成功');
+    } catch (err) {
+      console.error('CloudBase 登录失败:', err);
+      alert('CloudBase 登录失败: ' + err.message + '\n请确认已在控制台开启匿名登录。');
+      throw err;
+    }
+  }
 
-class AssetDB {
-constructor() { this.db = null; }
-async init() {
-  return new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB_NAME, DB_VERSION);
-    req.onerror = () => reject(req.error);
-    req.onsuccess = () => { this.db = req.result; resolve(); };
-    req.onupgradeneeded = (e) => {
-      const db = e.target.result;
-      if (!db.objectStoreNames.contains('assets')) {
-        const s = db.createObjectStore('assets', { keyPath: 'asset_code' });
-        s.createIndex('department', 'department', { unique: false });
-        s.createIndex('status', 'status', { unique: false });
+  // Assets - CloudBase v2 fields are at top level, not nested in doc.data
+  async getAllAssets() {
+    const res = await this.db.collection('assets').limit(1000).get();
+    return res.data || [];
+  }
+  async getAsset(code) {
+    const key = String(code);
+    const res = await this.db.collection('assets').where({ asset_code: key }).limit(1).get();
+    return res.data && res.data[0] ? res.data[0] : null;
+  }
+  async putAsset(asset) {
+    if (asset.asset_code != null) asset.asset_code = String(asset.asset_code);
+    const existing = await this.getAsset(asset.asset_code);
+    if (existing) {
+      const { _id, ...updateData } = asset;
+      await this.db.collection('assets').doc(existing._id).update(updateData);
+    } else {
+      await this.db.collection('assets').add(asset);
+    }
+  }
+  async deleteAsset(code) {
+    const key = String(code);
+    const existing = await this.getAsset(key);
+    if (existing) {
+      await this.db.collection('assets').doc(existing._id).remove();
+    }
+  }
+
+  // Tasks
+  async getAllTasks() {
+    const res = await this.db.collection('inventory_tasks').limit(1000).get();
+    return res.data || [];
+  }
+  async getTask(taskId) {
+    const res = await this.db.collection('inventory_tasks').where({ task_id: taskId }).limit(1).get();
+    return res.data && res.data[0] ? res.data[0] : null;
+  }
+  async putTask(task) {
+    const existing = await this.getTask(task.task_id);
+    if (existing) {
+      const { _id, ...updateData } = task;
+      await this.db.collection('inventory_tasks').doc(existing._id).update(updateData);
+    } else {
+      await this.db.collection('inventory_tasks').add(task);
+    }
+  }
+  async deleteTask(taskId) {
+    const existing = await this.getTask(taskId);
+    if (existing) {
+      await this.db.collection('inventory_tasks').doc(existing._id).remove();
+    }
+  }
+
+  // Records
+  async getAllRecords() {
+    const res = await this.db.collection('inventory_records').orderBy('inventory_time', 'desc').limit(1000).get();
+    return res.data || [];
+  }
+  async addRecord(record) {
+    await this.db.collection('inventory_records').add(record);
+  }
+
+  async exportAll() {
+    const assets = await this.getAllAssets();
+    const tasks = await this.getAllTasks();
+    const records = await this.getAllRecords();
+    return { assets, tasks, records, exportTime: new Date().toISOString() };
+  }
+
+  async importAll(data) {
+    if (!data || typeof data !== 'object') throw new Error('无效的数据格式');
+    let imported = { assets: 0, tasks: 0, records: 0 };
+    if (Array.isArray(data.assets)) {
+      for (const a of data.assets) {
+        if (a && a.asset_code) {
+          const existing = await this.getAsset(a.asset_code);
+          if (!existing) {
+            await this.putAsset(a);
+            imported.assets++;
+          }
+        }
       }
-      if (!db.objectStoreNames.contains('inventory_records')) db.createObjectStore('inventory_records', { autoIncrement: true });
-      if (!db.objectStoreNames.contains('inventory_tasks')) db.createObjectStore('inventory_tasks', { keyPath: 'task_id' });
-    };
-  });
+    }
+    if (Array.isArray(data.tasks)) {
+      for (const t of data.tasks) {
+        if (t && t.task_id) {
+          const existing = await this.getAllTasks();
+          const found = existing.find(x => x.task_id === t.task_id);
+          if (!found) {
+            await this.putTask(t);
+            imported.tasks++;
+          }
+        }
+      }
+    }
+    if (Array.isArray(data.records)) {
+      for (const rec of data.records) {
+        if (rec && rec.asset_code) {
+          await this.addRecord(rec);
+          imported.records++;
+        }
+      }
+    }
+    return imported;
+  }
 }
-_getStore(name, mode = 'readonly') { return this.db.transaction(name, mode).objectStore(name); }
-
-async getAllAssets() { return new Promise((r, j) => { const s = this._getStore('assets'); const req = s.getAll(); req.onsuccess = () => r(req.result); req.onerror = () => j(req.error); }); }
-async getAsset(code) { return new Promise((r, j) => { const s = this._getStore('assets'); const req = s.get(code); req.onsuccess = () => r(req.result); req.onerror = () => j(req.error); }); }
-async putAsset(asset) { return new Promise((r, j) => { const s = this._getStore('assets', 'readwrite'); const req = s.put(asset); req.onsuccess = () => r(); req.onerror = () => j(req.error); }); }
-async deleteAsset(code) { return new Promise((r, j) => { const s = this._getStore('assets', 'readwrite'); const req = s.delete(code); req.onsuccess = () => r(); req.onerror = () => j(req.error); }); }
-
-async getAllTasks() { return new Promise((r, j) => { const s = this._getStore('inventory_tasks'); const req = s.getAll(); req.onsuccess = () => r(req.result); req.onerror = () => j(req.error); }); }
-async putTask(task) { return new Promise((r, j) => { const s = this._getStore('inventory_tasks', 'readwrite'); const req = s.put(task); req.onsuccess = () => r(); req.onerror = () => j(req.error); }); }
-
-async getAllRecords() { return new Promise((r, j) => { const s = this._getStore('inventory_records'); const req = s.getAll(); req.onsuccess = () => r(req.result); req.onerror = () => j(req.error); }); }
-async addRecord(record) { return new Promise((r, j) => { const s = this._getStore('inventory_records', 'readwrite'); const req = s.add(record); req.onsuccess = () => r(req.result); req.onerror = () => j(req.error); }); }
-}
-const db = new AssetDB();
+const db = new CloudBaseDB('asset-qr-system-d6fjlhip5493ed49');
 
 // ===================== Crypto =====================
 class CryptoUtil {
@@ -340,10 +535,15 @@ let records = [];
 function handleRoute() {
   const params = new URLSearchParams(window.location.search);
   const scanToken = params.get('s');
+  const rfid = params.get('rfid');
   if (scanToken) {
     document.getElementById('adminPage').style.display = 'none';
     document.getElementById('scanPage').classList.add('active');
     loadScanPage(scanToken);
+  } else if (rfid) {
+    document.getElementById('adminPage').style.display = 'none';
+    document.getElementById('scanPage').classList.add('active');
+    loadScanPageByRFID(rfid);
   } else {
     document.getElementById('adminPage').style.display = 'block';
     document.getElementById('scanPage').classList.remove('active');
@@ -361,7 +561,13 @@ function backToAdmin() {
 
 // ===================== Init =====================
 document.addEventListener('DOMContentLoaded', async () => {
-  await db.init();
+  try {
+    await db.init();
+  } catch (err) {
+    console.error('数据库初始化失败:', err);
+    document.body.innerHTML = '<div style="padding:40px;text-align:center;"><h2>系统初始化失败</h2><p>CloudBase 连接失败，请检查网络并确认已开启匿名登录。</p><p style="color:#999;margin-top:10px;">' + (err.message || '未知错误') + '</p></div>';
+    return;
+  }
   await cryptoUtil.init();
   handleRoute();
   window.addEventListener('popstate', handleRoute);
@@ -380,7 +586,62 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('task_id').value = 'TASK-' + Date.now();
   document.getElementById('task_start').value = new Date().toISOString().split('T')[0];
   document.getElementById('task_end').value = new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0];
+
+  // RFID scanner listener
+  initRFIDListener();
 });
+
+// ===================== RFID Scanner =====================
+let rfidBuffer = '';
+let rfidLastKeyTime = 0;
+const RFID_TIMEOUT = 120;
+const RFID_MIN_LENGTH = 4;
+
+function initRFIDListener() {
+  document.addEventListener('keydown', (e) => {
+    const now = Date.now();
+    const isInput = e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA';
+    if (isInput && e.target.id !== 'rfid_tag') {
+      rfidBuffer = '';
+      return;
+    }
+    if (now - rfidLastKeyTime > RFID_TIMEOUT) {
+      rfidBuffer = '';
+    }
+    rfidLastKeyTime = now;
+    if (e.key === 'Enter') {
+      if (rfidBuffer.length >= RFID_MIN_LENGTH) {
+        e.preventDefault();
+        handleRFIDScan(rfidBuffer);
+      }
+      rfidBuffer = '';
+      return;
+    }
+    if (e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey) {
+      rfidBuffer += e.key;
+    }
+  });
+}
+
+async function handleRFIDScan(rfidTag) {
+  const rfidInput = document.getElementById('rfid_tag');
+  const modal = document.getElementById('assetModal');
+  if (modal.classList.contains('active') && document.activeElement === rfidInput) {
+    rfidInput.value = rfidTag;
+    return;
+  }
+  // Search and navigate
+  const allAssets = await db.getAllAssets();
+  const asset = allAssets.find(a => a.rfid_tag === rfidTag);
+  if (asset) {
+    document.querySelector('.tab[data-tab="assets"]').click();
+    document.getElementById('searchInput').value = rfidTag;
+    renderTable();
+    alert(`RFID识别成功: ${asset.asset_name} (${asset.asset_code})`);
+  } else {
+    alert('未找到绑定的资产，RFID: ' + rfidTag);
+  }
+}
 
 // ===================== Assets CRUD =====================
 async function loadAssets() {
@@ -409,7 +670,7 @@ function getFilteredAssets() {
   const dept = document.getElementById('deptFilter').value;
   const status = document.getElementById('statusFilter').value;
   return assets.filter(a => {
-    if (search && !a.asset_code?.toLowerCase().includes(search) && !a.asset_name?.toLowerCase().includes(search)) return false;
+    if (search && !a.asset_code?.toLowerCase().includes(search) && !a.asset_name?.toLowerCase().includes(search) && !(a.rfid_tag && a.rfid_tag.toLowerCase().includes(search))) return false;
     if (dept && a.department !== dept) return false;
     if (status && a.status !== status) return false;
     return true;
@@ -426,9 +687,9 @@ function renderTable() {
   tbody.innerHTML = pageData.map(a => `
     <tr>
       <td class="checkbox-col"><input type="checkbox" ${selectedAssets.has(a.asset_code) ? 'checked' : ''} onchange="toggleSelect('${a.asset_code}')"></td>
-      <td>${a.asset_code}</td><td>${a.asset_name}</td><td>${a.category}</td><td>${a.department}</td>
-      <td>${a.location}</td><td>${getStatusTag(a.status)}</td><td>${a.responsible_person}</td>
-      <td>${a.purchase_price || 0}</td>
+      <td>${a.asset_code}</td><td>${a.asset_name}</td><td>${a.category}</td><td>${a.asset_class_code || '-'}</td>
+      <td>${a.department}</td><td>${a.location}</td><td>${getStatusTag(a.status)}</td><td>${a.responsible_person}</td>
+      <td>${a.purchase_price || 0}</td><td>${a.rfid_tag || '-'}</td>
       <td>
         <button class="btn btn-primary" style="padding:4px 8px;font-size:12px;" onclick="generateSingleQR('${a.asset_code}')">二维码</button>
         <button class="btn btn-warning" style="padding:4px 8px;font-size:12px;" onclick="editAsset('${a.asset_code}')">编辑</button>
@@ -439,7 +700,7 @@ function renderTable() {
 }
 
 function getStatusTag(status) {
-  const map = { '在用': '<span class="tag tag-success">在用</span>', '闲置': '<span class="tag tag-info">闲置</span>', '维修': '<span class="tag tag-warning">维修</span>', '报废': '<span class="tag tag-danger">报废</span>' };
+  const map = { '在用': '<span class="tag tag-success">在用</span>', '闲置': '<span class="tag tag-info">闲置</span>', '维修': '<span class="tag tag-warning">维修</span>', '报废': '<span class="tag tag-danger">报废</span>', '已盘点': '<span class="tag tag-success">已盘点</span>' };
   return map[status] || status;
 }
 
@@ -466,6 +727,7 @@ async function saveAsset() {
     });
     data.created_at = data.created_at || new Date().toISOString();
     data.updated_at = new Date().toISOString();
+    if (data.asset_code != null) data.asset_code = String(data.asset_code);
 
     await db.putAsset(data);
     closeModal('assetModal');
@@ -520,7 +782,7 @@ async function generateSingleQR(code) {
   const baseUrl = getBaseUrl();
   const url = baseUrl + '?s=' + encodeURIComponent(token);
   selectedAssets = new Set([code]);
-  showQRPreview([{ asset_code: code, asset_name: asset.asset_name, department: asset.department, location: asset.location, url }]);
+  showQRPreview([{ asset_code: code, asset_name: asset.asset_name, department: asset.department, location: asset.location, rfid_tag: asset.rfid_tag, url }]);
 }
 
 async function batchGenerateQR() {
@@ -532,7 +794,7 @@ async function batchGenerateQR() {
       const mini = minifyAsset(asset);
       const token = await cryptoUtil.encrypt(mini);
       const baseUrl = getBaseUrl();
-      items.push({ asset_code: code, asset_name: asset.asset_name, department: asset.department, location: asset.location, url: baseUrl + '?s=' + encodeURIComponent(token) });
+      items.push({ asset_code: code, asset_name: asset.asset_name, department: asset.department, location: asset.location, rfid_tag: asset.rfid_tag, url: baseUrl + '?s=' + encodeURIComponent(token) });
     }
   }
   showQRPreview(items);
@@ -554,6 +816,7 @@ function showQRPreview(items) {
   items.forEach(item => {
     const label = document.createElement('div');
     label.className = 'qr-label';
+    const rfidText = item.rfid_tag ? `<div style="text-align:center;font-size:11px;font-weight:600;color:#667eea;margin-top:4px;">RFID: ${item.rfid_tag}</div>` : '';
     label.innerHTML = `
       <div class="label-header">
         <div class="label-title">固定资产标签</div>
@@ -565,6 +828,7 @@ function showQRPreview(items) {
         </table>
       </div>
       <div class="qr-wrap" id="qr-${item.asset_code}"></div>
+      ${rfidText}
     `;
     sheet.appendChild(label);
     setTimeout(() => {
@@ -615,34 +879,7 @@ async function loadScanPage(token) {
       a = await db.getAsset(payload.a);
     }
     if (!a || !a.asset_code) throw new Error('Asset not found');
-
-    const statusMap = { '在用': 'status-IN_USE', '闲置': 'status-IDLE', '维修': 'status-REPAIR', '报废': 'status-SCRAPPED' };
-    const s = statusMap[a.status] || '';
-
-    content.innerHTML = `
-      <div class="scan-card"><div class="scan-card-header"><span class="scan-code">${a.asset_code}</span><span class="tag ${s}">${a.status}</span></div>
-      <div class="scan-body">
-        <div class="info-row"><span class="info-label">资产名称</span><span class="info-value">${a.asset_name}</span></div>
-        <div class="info-row"><span class="info-label">使用部门</span><span class="info-value">${a.department}</span></div>
-        <div class="info-row"><span class="info-label">责任人</span><span class="info-value">${a.responsible_person}</span></div>
-        <div class="info-row"><span class="info-label">台账存放地点</span><span class="info-value" id="bookLocation">${a.location}</span></div>
-      </div></div>
-      <div class="section-title">盘点确认</div>
-      <div class="confirm-box">
-        <div class="notice">请核对资产实际信息，如有差异请在下方填写实际情况。</div>
-        <div class="form-group"><label>盘点人姓名 *</label><input type="text" id="inventoryPerson" placeholder="请输入您的姓名"></div>
-        <div class="form-group"><label>实际存放地点 *</label><input type="text" id="actualLocation" value="${a.location}"></div>
-        <div class="form-group"><label>盘点任务</label><select id="scanTaskSelect"><option value="">选择盘点任务（可选）</option></select></div>
-      </div>
-    `;
-    actionBar.style.display = 'flex';
-    document.getElementById('confirmBtn').dataset.assetCode = a.asset_code;
-    document.getElementById('confirmBtn').dataset.location = a.location;
-
-    // Load tasks
-    const tasks = await db.getAllTasks();
-    const sel = document.getElementById('scanTaskSelect');
-    if (sel) sel.innerHTML = '<option value="">选择盘点任务（可选）</option>' + tasks.filter(t => t.status === '进行中').map(t => `<option value="${t.task_id}">${t.task_name}</option>`).join('');
+    renderScanAsset(a);
   } catch (e) {
     content.innerHTML = `<div class="error-box"><div style="font-size:48px;margin-bottom:10px;">&#9888;</div><p style="color:#ff4d4f;font-size:16px;">无效二维码或已过期</p><p style="margin-top:15px;color:#999;font-size:13px;">${e.message}</p></div>`;
     actionBar.style.display = 'flex';
@@ -650,10 +887,52 @@ async function loadScanPage(token) {
   }
 }
 
+async function loadScanPageByRFID(rfidTag) {
+  const content = document.getElementById('scanContent');
+  const actionBar = document.getElementById('scanActionBar');
+  try {
+    const allAssets = await db.getAllAssets();
+    const a = allAssets.find(x => x.rfid_tag === rfidTag);
+    if (!a) throw new Error('RFID not bound to any asset');
+    renderScanAsset(a);
+  } catch (e) {
+    content.innerHTML = `<div class="error-box"><div style="font-size:48px;margin-bottom:10px;">&#9888;</div><p style="color:#ff4d4f;font-size:16px;">RFID未绑定资产</p><p style="margin-top:15px;color:#999;font-size:13px;">${e.message}</p></div>`;
+    actionBar.style.display = 'flex';
+    document.getElementById('confirmBtn').style.display = 'none';
+  }
+}
+
+async function renderScanAsset(a) {
+  const content = document.getElementById('scanContent');
+  const actionBar = document.getElementById('scanActionBar');
+  const statusMap = { '在用': 'status-IN_USE', '闲置': 'status-IDLE', '维修': 'status-REPAIR', '报废': 'status-SCRAPPED', '已盘点': 'status-IN_USE' };
+  const s = statusMap[a.status] || '';
+
+  const rfidDisplay = a.rfid_tag ? `<div class="info-row"><span class="info-label">RFID标签</span><span class="info-value" style="color:#667eea;font-weight:600;">${a.rfid_tag}</span></div>` : '';
+  content.innerHTML = `
+    <div class="scan-card"><div class="scan-card-header"><span class="scan-code">${a.asset_code}</span><span class="tag ${s}">${a.status}</span></div>
+    <div class="scan-body">
+      <div class="info-row"><span class="info-label">资产名称</span><span class="info-value">${a.asset_name}</span></div>
+      <div class="info-row"><span class="info-label">使用部门</span><span class="info-value">${a.department}</span></div>
+      <div class="info-row"><span class="info-label">责任人</span><span class="info-value">${a.responsible_person}</span></div>
+      <div class="info-row"><span class="info-label">台账存放地点</span><span class="info-value" id="bookLocation">${a.location}</span></div>
+      ${rfidDisplay}
+    </div></div>
+    <div class="section-title">盘点确认</div>
+    <div class="confirm-box">
+      <div class="notice">请核对资产实际信息，如有差异请在下方填写实际情况。</div>
+      <div class="form-group"><label>盘点人姓名 *</label><input type="text" id="inventoryPerson" placeholder="请输入您的姓名"></div>
+      <div class="form-group"><label>实际存放地点 *</label><input type="text" id="actualLocation" value="${a.location}"></div>
+    </div>
+  `;
+  actionBar.style.display = 'flex';
+  document.getElementById('confirmBtn').dataset.assetCode = a.asset_code;
+  document.getElementById('confirmBtn').dataset.location = a.location;
+}
+
 async function confirmInventory() {
   const person = document.getElementById('inventoryPerson')?.value.trim();
   const location = document.getElementById('actualLocation')?.value.trim();
-  const taskId = document.getElementById('scanTaskSelect')?.value || '';
   const btn = document.getElementById('confirmBtn');
   const assetCode = btn.dataset.assetCode;
   const originalLocation = btn.dataset.location;
@@ -662,45 +941,141 @@ async function confirmInventory() {
 
   const status = originalLocation === location ? '正常' : '位置不符';
 
-  await db.addRecord({
-    asset_code: assetCode, inventory_person: person, inventory_time: new Date().toISOString(),
-    original_location: originalLocation, actual_location: location, status, task_id: taskId || null
-  });
+  try {
+    await db.addRecord({
+      asset_code: assetCode, inventory_person: person, inventory_time: new Date().toISOString(),
+      original_location: originalLocation, actual_location: location, status
+    });
 
-  document.getElementById('scanContent').innerHTML = `
-    <div class="success-box"><div style="font-size:48px;color:#52c41a;margin-bottom:10px;">&#10004;</div>
-    <p style="font-size:16px;color:#333;">盘点成功！${status === '位置不符' ? '（发现位置不符）' : ''}</p>
-    <p style="margin-top:10px;color:#999;font-size:13px;">您可以关闭页面或返回首页</p></div>
-  `;
-  document.getElementById('scanActionBar').innerHTML = `<button class="btn btn-secondary" onclick="backToAdmin()">返回首页</button><button class="btn btn-primary" onclick="window.location.reload()">继续盘点</button>`;
+    // 更新资产状态为已盘点
+    const asset = await db.getAsset(assetCode);
+    if (asset) {
+      asset.status = '已盘点';
+      asset.updated_at = new Date().toISOString();
+      await db.putAsset(asset);
+    }
+
+    document.getElementById('scanContent').innerHTML = `
+      <div class="success-box"><div style="font-size:48px;color:#52c41a;margin-bottom:10px;">&#10004;</div>
+      <p style="font-size:16px;color:#333;">盘点成功！${status === '位置不符' ? '（发现位置不符）' : ''}</p>
+      <p style="margin-top:10px;color:#999;font-size:13px;">您可以关闭页面或返回首页</p></div>
+    `;
+    document.getElementById('scanActionBar').innerHTML = `<button class="btn btn-secondary" onclick="backToAdmin()">返回首页</button><button class="btn btn-primary" onclick="window.location.reload()">继续盘点</button>`;
+  } catch (err) {
+    console.error('盘点保存失败:', err);
+    alert('盘点保存失败: ' + (err.message || '未知错误'));
+  }
 }
 
 // ===================== Tasks =====================
 async function loadTasks() {
   tasks = await db.getAllTasks();
-  document.getElementById('taskTable').innerHTML = tasks.map(t => `
-    <tr><td>${t.task_id}</td><td>${t.task_name}</td><td>${t.start_date}</td><td>${t.end_date}</td>
+  document.getElementById('taskTable').innerHTML = tasks.map(t => {
+    const assetCount = (t.asset_codes || []).length;
+    const persons = (t.inventory_persons || []).join(', ') || '-';
+    return `<tr><td>${t.task_id}</td><td>${t.task_name}</td><td>${t.start_date}</td><td>${t.end_date}</td>
+    <td>${persons}</td>
     <td><span class="tag ${t.status === '进行中' ? 'tag-success' : 'tag-secondary'}">${t.status}</span></td>
-    <td><button class="btn btn-primary" style="padding:4px 8px;font-size:12px;" onclick="viewTaskReport('${t.task_id}')">查看</button></td></tr>
-  `).join('');
+    <td><button class="btn btn-primary" style="padding:4px 8px;font-size:12px;" onclick="editTaskAssets('${t.task_id}')">分配资产(${assetCount})</button>
+    <button class="btn btn-primary" style="padding:4px 8px;font-size:12px;" onclick="viewTaskReport('${t.task_id}')">查看</button>
+    <button class="btn btn-danger" style="padding:4px 8px;font-size:12px;" onclick="deleteTask('${t.task_id}')">删除</button></td></tr>`;
+  }).join('');
 
   const sel = document.getElementById('reportTaskSelect');
   sel.innerHTML = '<option value="">选择盘点任务</option>' + tasks.map(t => `<option value="${t.task_id}">${t.task_name} (${t.task_id})</option>`).join('');
+
+  const toolbarSel = document.getElementById('toolbarTaskSelect');
+  if (toolbarSel) toolbarSel.innerHTML = '<option value="">选择盘点任务</option>' + tasks.filter(t => t.status === '进行中').map(t => `<option value="${t.task_id}">${t.task_name}</option>`).join('');
 }
 
-function openTaskModal() { document.getElementById('taskModal').classList.add('active'); }
+async function editTaskAssets(taskId) {
+  const task = tasks.find(t => t.task_id === taskId);
+  if (!task) return;
+  const allAssets = await db.getAllAssets();
+  const selected = new Set(task.asset_codes || []);
+  const codes = prompt('请输入该任务要盘点的资产编号（多个用逗号分隔）：', (task.asset_codes || []).join(', '));
+  if (codes === null) return;
+  task.asset_codes = codes.split(',').map(s => s.trim()).filter(Boolean);
+  await db.putTask(task);
+  await loadTasks();
+}
+
+async function openAssignAssetModal() {
+  const taskId = document.getElementById('toolbarTaskSelect').value;
+  if (!taskId) { alert('请先在操作栏选择盘点任务'); return; }
+  const task = tasks.find(t => t.task_id === taskId);
+  if (!task) return;
+  document.getElementById('assignTaskId').value = task.task_name + ' (' + task.task_id + ')';
+  document.getElementById('assignAssetModal').classList.add('active');
+
+  const allAssets = await db.getAllAssets();
+  const selected = new Set(task.asset_codes || []);
+  const container = document.getElementById('assignAssetList');
+  if (allAssets.length === 0) {
+    container.innerHTML = '<div class="notice" style="margin:0;">暂无资产</div>';
+  } else {
+    container.innerHTML = allAssets.map(a => `
+      <label style="display:flex;align-items:center;gap:8px;padding:6px 0;cursor:pointer;font-size:13px;">
+        <input type="checkbox" class="assign-asset-check" value="${a.asset_code}" ${selected.has(a.asset_code) ? 'checked' : ''} style="width:auto;">
+        <span>${a.asset_code} - ${a.asset_name} (${a.department})</span>
+      </label>
+    `).join('');
+  }
+}
+
+async function saveAssignAssets() {
+  const taskId = document.getElementById('toolbarTaskSelect').value;
+  const task = tasks.find(t => t.task_id === taskId);
+  if (!task) return;
+  task.asset_codes = Array.from(document.querySelectorAll('.assign-asset-check:checked')).map(cb => cb.value);
+  await db.putTask(task);
+  closeModal('assignAssetModal');
+  await loadTasks();
+  alert('资产分配已保存');
+}
+
+async function openTaskModal() {
+  document.getElementById('taskModal').classList.add('active');
+  const container = document.getElementById('taskAssetSelect');
+  const allAssets = await db.getAllAssets();
+  if (allAssets.length === 0) {
+    container.innerHTML = '<div class="notice" style="margin:0;">暂无资产，请先添加资产</div>';
+  } else {
+    container.innerHTML = allAssets.map(a => `
+      <label style="display:flex;align-items:center;gap:8px;padding:6px 0;cursor:pointer;font-size:13px;">
+        <input type="checkbox" class="task-asset-check" value="${a.asset_code}" style="width:auto;">
+        <span>${a.asset_code} - ${a.asset_name} (${a.department})</span>
+      </label>
+    `).join('');
+  }
+}
 async function saveTask() {
+  const assetCodes = Array.from(document.querySelectorAll('.task-asset-check:checked')).map(cb => cb.value);
+  const personsRaw = document.getElementById('task_persons').value.trim();
   const task = {
     task_id: document.getElementById('task_id').value,
     task_name: document.getElementById('task_name').value,
     start_date: document.getElementById('task_start').value,
     end_date: document.getElementById('task_end').value,
-    status: '进行中'
+    status: '进行中',
+    inventory_persons: personsRaw ? personsRaw.split(',').map(s => s.trim()).filter(Boolean) : [],
+    asset_codes: assetCodes
   };
   if (!task.task_name || !task.start_date || !task.end_date) { alert('请填写完整信息'); return; }
   await db.putTask(task);
   closeModal('taskModal');
   await loadTasks();
+}
+async function deleteTask(taskId) {
+  if (!confirm(`确认删除盘点任务 ${taskId}？\n注意：删除后该任务的盘点记录将不再关联此任务，但记录本身会保留。`)) return;
+  try {
+    await db.deleteTask(taskId);
+    await loadTasks();
+    alert('盘点任务已删除');
+  } catch (err) {
+    console.error('删除任务失败:', err);
+    alert('删除失败: ' + (err.message || '未知错误'));
+  }
 }
 function viewTaskReport(taskId) { document.querySelector('.tab[data-tab="reports"]').click(); document.getElementById('reportTaskSelect').value = taskId; generateReport(); }
 
@@ -708,65 +1083,155 @@ function viewTaskReport(taskId) { document.querySelector('.tab[data-tab="reports
 async function generateReport() {
   const taskId = document.getElementById('reportTaskSelect').value;
   if (!taskId) { alert('请选择盘点任务'); return; }
+  const statusFilter = document.getElementById('reportStatusFilter').value;
+
+  const task = tasks.find(t => t.task_id === taskId);
+  const assignedCodes = task?.asset_codes || [];
+  const boundPersons = task?.inventory_persons || [];
+  if (assignedCodes.length === 0) {
+    document.getElementById('reportContent').innerHTML = `<div class="card"><div class="notice">该盘点任务尚未分配资产，请先在盘点任务页分配资产。</div></div>`;
+    return;
+  }
+
   const allAssets = await db.getAllAssets();
+  const assignedAssets = allAssets.filter(a => assignedCodes.includes(a.asset_code));
   const allRecords = await db.getAllRecords();
-  const taskRecords = allRecords.filter(r => r.task_id === taskId);
-  const checkedMap = new Map(taskRecords.map(r => [r.asset_code, r]));
 
-  const diffItems = [];
-  for (const asset of allAssets) {
-    const rec = checkedMap.get(asset.asset_code);
-    if (!rec) {
-      diffItems.push({ asset_code: asset.asset_code, asset_name: asset.asset_name, diff_type: '盘亏', book_value: asset.net_value || asset.purchase_price, expected_location: asset.location, actual_location: null });
-    } else if (rec.status === '位置不符') {
-      diffItems.push({ asset_code: asset.asset_code, asset_name: asset.asset_name, diff_type: '位置不符', book_value: asset.net_value || asset.purchase_price, expected_location: asset.location, actual_location: rec.actual_location });
-    }
-  }
-  const assetCodes = new Set(allAssets.map(a => a.asset_code));
-  for (const rec of taskRecords) {
-    if (!assetCodes.has(rec.asset_code)) {
-      diffItems.push({ asset_code: rec.asset_code, asset_name: '未知资产', diff_type: '盘盈', book_value: null, expected_location: null, actual_location: rec.actual_location });
+  // 只取资产在该任务分配列表中的记录；若任务绑定了盘点人，则再按人过滤
+  const taskRecords = allRecords.filter(r => {
+    if (!assignedCodes.includes(r.asset_code)) return false;
+    if (boundPersons.length > 0 && !boundPersons.includes(r.inventory_person)) return false;
+    return true;
+  });
+
+  // 同一资产可能有多条记录，取最新一条
+  const latestRecordMap = new Map();
+  for (const r of taskRecords) {
+    const existing = latestRecordMap.get(r.asset_code);
+    if (!existing || new Date(r.inventory_time) > new Date(existing.inventory_time)) {
+      latestRecordMap.set(r.asset_code, r);
     }
   }
 
+  let diffItems = [];
+  for (const asset of assignedAssets) {
+    const rec = latestRecordMap.get(asset.asset_code);
+    const diff_type = rec ? '盘点成功' : '未盘点';
+    diffItems.push({
+      asset_code: asset.asset_code, asset_name: asset.asset_name, diff_type,
+      book_value: asset.net_value || asset.purchase_price, expected_location: asset.location,
+      actual_location: rec ? rec.actual_location : null,
+      inventory_time: rec ? rec.inventory_time : null,
+      inventory_person: rec ? rec.inventory_person : null
+    });
+  }
+
+  if (statusFilter !== '全部') {
+    diffItems = diffItems.filter(i => i.diff_type === statusFilter);
+  }
+
+  const checkedCount = diffItems.filter(i => i.diff_type === '盘点成功').length;
   const content = document.getElementById('reportContent');
   content.innerHTML = `
-    <div class="card"><h3 style="margin-bottom:12px;">差异报告 - ${taskId}</h3>
-    <p>资产总数: ${allAssets.length} | 已盘点: ${taskRecords.length} | 差异数: ${diffItems.length}</p>
-    <p>生成时间: ${new Date().toLocaleString()}</p>
+    <div class="card"><h3 style="margin-bottom:12px;color:#0074b7;">盘点报告 - ${taskId}</h3>
+    <p>任务分配资产: ${assignedAssets.length} | 盘点成功: ${checkedCount} | 未盘点: ${assignedAssets.length - checkedCount} | 筛选: ${statusFilter}</p>
+    <p>绑定盘点人: ${boundPersons.join(', ') || '无'} | 生成时间: ${new Date().toLocaleString()}</p>
     <div style="margin-top:12px;"><button class="btn btn-success" onclick="exportDiffReport()">导出Excel</button></div>
-    <table style="margin-top:12px;"><thead><tr><th>资产编号</th><th>资产名称</th><th>差异类型</th><th>账面净值</th><th>台账地点</th><th>实际地点</th></tr></thead>
-    <tbody>${diffItems.map(item => `<tr><td>${item.asset_code}</td><td>${item.asset_name}</td><td>${getDiffTag(item.diff_type)}</td><td>${item.book_value || '-'}</td><td>${item.expected_location || '-'}</td><td>${item.actual_location || '-'}</td></tr>`).join('')}</tbody>
+    <table style="margin-top:12px;"><thead><tr><th>资产编号</th><th>资产名称</th><th>盘点情况</th><th>账面净值</th><th>台账地点</th><th>实际地点</th><th>实际盘点时间</th><th>盘点人员</th></tr></thead>
+    <tbody>${diffItems.map(item => `<tr><td>${item.asset_code}</td><td>${item.asset_name}</td><td>${getDiffTag(item.diff_type)}</td><td>${item.book_value || '-'}</td><td>${item.expected_location || '-'}</td><td>${item.actual_location || '-'}</td><td>${item.inventory_time ? new Date(item.inventory_time).toLocaleString() : '-'}</td><td>${item.inventory_person || '-'}</td></tr>`).join('')}</tbody>
     </table></div>
   `;
   window._diffReport = { taskId, diffItems };
 }
 
 function getDiffTag(type) {
-  const map = { '盘盈': '<span class="tag tag-success">盘盈</span>', '盘亏': '<span class="tag tag-danger">盘亏</span>', '位置不符': '<span class="tag tag-warning">位置不符</span>' };
+  const map = { '盘点成功': '<span class="tag tag-success">盘点成功</span>', '未盘点': '<span class="tag tag-danger">未盘点</span>' };
   return map[type] || type;
 }
 
 // ===================== Excel =====================
+const COLUMN_MAP = {
+  '资产编号': 'asset_code', '资产名称': 'asset_name', '管理单元': 'management_unit',
+  '品牌': 'brand', '规格型号': 'spec_model', '出厂编号': 'serial_no',
+  '取得方式': 'acquisition_method', '购建日期': 'purchase_date', '启用时间': 'book_date',
+  '使用单位': 'department', '使用部门': 'department', '管理者': 'responsible_person',
+  '使用者': 'current_user', '使用地点': 'location', '归口管理': 'custodian_dept',
+  '采购部门': 'procurement_dept', '资产原值': 'purchase_price', '牌照号': 'license_plate',
+  '出厂日期': 'factory_date', '制造厂家': 'manufacturer', '供应商': 'supplier',
+  '备注': 'remarks', '设备代码': 'equipment_code', '设备成组': 'equipment_group',
+  '决算出项': 'final_account', '建卡时间': 'card_date', '账套': 'account_book',
+  '凭证号': 'voucher_no', '核算项目': 'accounting_item', '核算科目': 'accounting_subject',
+  '主体资产': 'purchase_price', '增值税': 'vat', '安装费': 'installation_fee',
+  '运杂费': 'shipping_fee', '其他费用': 'other_fee', '折旧状态': 'depreciation_status',
+  '折旧方法': 'depreciation_method', '折旧期限(月)': 'useful_life_months',
+  '残值率(%)': 'residual_rate', '月折旧率': 'monthly_depreciation_rate',
+  '月折旧额': 'monthly_depreciation_amount', '合同代码': 'contract_code',
+  '验收单': 'acceptance_doc', '调拨单': 'transfer_doc', '可扫描': 'scanable',
+  '资产类码': 'asset_class_code', '分类码描述': 'category', '状态': 'status',
+  'RFID标签号': 'rfid_tag',
+  // 兼容原有英文列名
+  'asset_code': 'asset_code', 'asset_name': 'asset_name', 'category': 'category',
+  'spec_model': 'spec_model', 'serial_no': 'serial_no', 'brand': 'brand',
+  'purchase_date': 'purchase_date', 'purchase_price': 'purchase_price',
+  'department': 'department', 'current_user': 'current_user', 'location': 'location',
+  'status': 'status', 'supplier': 'supplier', 'useful_life_months': 'useful_life_months',
+  'depreciation_method': 'depreciation_method', 'accumulated_depreciation': 'accumulated_depreciation',
+  'net_value': 'net_value', 'responsible_person': 'responsible_person',
+  'book_date': 'book_date', 'voucher_no': 'voucher_no', 'remarks': 'remarks',
+  'rfid_tag': 'rfid_tag'
+};
+
 function exportTemplate() {
-  const headers = ['asset_code','asset_name','category','spec_model','serial_no','brand','purchase_date','purchase_price','department','current_user','location','status','supplier','useful_life_months','depreciation_method','accumulated_depreciation','net_value','responsible_person','book_date','voucher_no','remarks'];
-  const sample = ['FA20260001','联想笔记本','IT设备','ThinkPad T14','SN123456','联想','2024-01-15',6500,'技术部','张三','A栋-3层-301','在用','京东',36,'直线',1083.33,5416.67,'李四','2024-01-20','PZ-2024-001','新员工配发'];
+  const headers = [
+    '资产编号','资产名称','管理单元','品牌','规格型号','出厂编号',
+    '取得方式','购建日期','启用时间','使用单位','使用部门','管理者',
+    '使用者','使用地点','归口管理','采购部门','资产原值','牌照号',
+    '出厂日期','制造厂家','供应商','备注','设备代码','设备成组',
+    '决算出项','建卡时间','账套','凭证号','核算项目','核算科目',
+    '主体资产','增值税','安装费','运杂费','其他费用','折旧状态',
+    '折旧方法','折旧期限(月)','残值率(%)','月折旧率','月折旧额',
+    '合同代码','验收单','调拨单','可扫描','资产类码','分类码描述',
+    '状态','RFID标签号'
+  ];
+  const sample = [
+    '1011048004132','华为信创台式机电脑','三峡物资招标管理有限公司(800)','华为','擎云W515','0412230727006759',
+    '新购','2026-08-06','2026-08-06','三峡物资招标公司(510)','三峡物资招标公司抽水蓄能业务部(51022)','李刚',
+    '李刚','湖北省襄阳市南漳县李庙镇闫坪村南漳抽水蓄能项目部','','',3880.84,'',
+    '','','','远达物流资产转让设备','','',
+    '','2026-08-06','三峡物资招标公司帐套','','','固定资产',
+    3880.84,0,'','','','折旧',
+    '线性折旧','60','0','','',
+    '','','','否','101104','台式计算机',
+    '已启用',''
+  ];
   const ws = XLSX.utils.aoa_to_sheet([headers, sample]);
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'Template');
+  XLSX.utils.book_append_sheet(wb, ws, '固定资产卡片导入模板');
   XLSX.writeFile(wb, 'asset_import_template.xlsx');
 }
 
 function exportAssets() {
   const data = assets.map(a => ({
-    资产编号: a.asset_code, 资产名称: a.asset_name, 分类: a.category, 规格型号: a.spec_model,
-    序列号: a.serial_no, 品牌: a.brand, 购入日期: a.purchase_date, 购入价格: a.purchase_price,
-    部门: a.department, 使用人: a.current_user, 存放地点: a.location, 状态: a.status,
-    责任人: a.responsible_person, 净值: a.net_value
+    资产编号: a.asset_code, 资产名称: a.asset_name, 管理单元: a.management_unit || '', 品牌: a.brand || '',
+    规格型号: a.spec_model || '', 出厂编号: a.serial_no || '', 取得方式: a.acquisition_method || '',
+    购建日期: a.purchase_date, 启用时间: a.book_date || '', 使用单位: a.department, 使用部门: a.department,
+    管理者: a.responsible_person, 使用者: a.current_user || '', 使用地点: a.location,
+    归口管理: a.custodian_dept || '', 采购部门: a.procurement_dept || '', 资产原值: a.purchase_price,
+    牌照号: a.license_plate || '', 出厂日期: a.factory_date || '', 制造厂家: a.manufacturer || '',
+    供应商: a.supplier || '', 备注: a.remarks || '', 设备代码: a.equipment_code || '',
+    设备成组: a.equipment_group || '', 决算出项: a.final_account || '', 建卡时间: a.card_date || '',
+    账套: a.account_book || '', 凭证号: a.voucher_no || '', 核算项目: a.accounting_item || '',
+    核算科目: a.accounting_subject || '', 主体资产: a.purchase_price, 增值税: a.vat || 0,
+    安装费: a.installation_fee || '', 运杂费: a.shipping_fee || '', 其他费用: a.other_fee || '',
+    折旧状态: a.depreciation_status || '', 折旧方法: a.depreciation_method || '', 折旧期限: a.useful_life_months || '',
+    残值率: a.residual_rate || '', 月折旧率: a.monthly_depreciation_rate || '', 月折旧额: a.monthly_depreciation_amount || '',
+    合同代码: a.contract_code || '', 验收单: a.acceptance_doc || '', 调拨单: a.transfer_doc || '',
+    可扫描: a.scanable || '', 资产类码: a.asset_class_code || '', 分类码描述: a.category,
+    状态: a.status, RFID标签号: a.rfid_tag || ''
   }));
   const ws = XLSX.utils.json_to_sheet(data);
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'Assets');
+  XLSX.utils.book_append_sheet(wb, ws, '固定资产卡片');
   XLSX.writeFile(wb, `assets_${new Date().toISOString().split('T')[0]}.xlsx`);
 }
 
@@ -774,13 +1239,51 @@ function exportDiffReport() {
   const r = window._diffReport;
   if (!r) return;
   const data = r.diffItems.map(i => ({
-    资产编号: i.asset_code, 资产名称: i.asset_name, 差异类型: i.diff_type,
-    账面净值: i.book_value, 台账地点: i.expected_location, 实际地点: i.actual_location
+    资产编号: i.asset_code, 资产名称: i.asset_name, 盘点情况: i.diff_type,
+    账面净值: i.book_value, 台账地点: i.expected_location, 实际地点: i.actual_location,
+    实际盘点时间: i.inventory_time ? new Date(i.inventory_time).toLocaleString() : '',
+    盘点人员: i.inventory_person || ''
   }));
   const ws = XLSX.utils.json_to_sheet(data);
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'DiffReport');
-  XLSX.writeFile(wb, `diff_report_${r.taskId}.xlsx`);
+  XLSX.utils.book_append_sheet(wb, ws, '盘点报告');
+  XLSX.writeFile(wb, `inventory_report_${r.taskId}.xlsx`);
+}
+
+// 导出全部数据为 JSON（跨设备同步用）
+async function exportAllData() {
+  try {
+    const data = await db.exportAll();
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `asset_backup_${new Date().toISOString().split('T')[0]}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    alert(`导出成功！\n资产: ${data.assets.length} 条\n任务: ${data.tasks.length} 条\n盘点记录: ${data.records.length} 条`);
+  } catch (err) {
+    alert('导出失败: ' + err.message);
+  }
+}
+
+// 导入全部 JSON 数据（跨设备同步用）
+async function importAllData(input) {
+  const file = input.files[0];
+  if (!file) return;
+  input.value = '';
+  try {
+    const text = await file.text();
+    const data = JSON.parse(text);
+    const imported = await db.importAll(data);
+    await loadAssets();
+    await loadTasks();
+    alert(`导入成功！\n新增资产: ${imported.assets} 条\n新增任务: ${imported.tasks} 条\n新增盘点记录: ${imported.records} 条`);
+  } catch (err) {
+    alert('导入失败: ' + err.message);
+  }
 }
 
 async function importExcel(input) {
@@ -793,6 +1296,10 @@ async function importExcel(input) {
   const headers = rows[0];
   let success = 0, failed = 0, errors = [];
 
+  const NUMERIC_FIELDS = ['purchase_price','accumulated_depreciation','net_value','vat','installation_fee','shipping_fee','other_fee','residual_rate','monthly_depreciation_rate','monthly_depreciation_amount'];
+  const INT_FIELDS = ['useful_life_months'];
+  const DATE_FIELDS = ['purchase_date','book_date','factory_date','card_date'];
+
   for (let i = 1; i < rows.length; i++) {
     const row = rows[i];
     if (!row[0]) continue;
@@ -800,24 +1307,33 @@ async function importExcel(input) {
       const asset = {};
       headers.forEach((h, idx) => {
         if (!h) return;
+        const field = COLUMN_MAP[h] || h;
+        if (!field) return;
         let v = row[idx];
-        if (h === 'purchase_date' && v) {
+        if (DATE_FIELDS.includes(field) && v) {
           if (typeof v === 'number') {
             const d = new Date((v - 25569) * 86400 * 1000);
             v = d.toISOString().split('T')[0];
+          } else if (typeof v === 'string') {
+            v = v.trim();
           }
         }
-        if (['purchase_price','accumulated_depreciation','net_value'].includes(h) && v) v = parseFloat(v);
-        if (h === 'useful_life_months' && v) v = parseInt(v);
-        asset[h] = v;
+        if (NUMERIC_FIELDS.includes(field) && v) v = parseFloat(v);
+        if (INT_FIELDS.includes(field) && v) v = parseInt(v);
+        if (field === 'status' && v) {
+          v = String(v).trim();
+          if (v === '已启用') v = '在用';
+        }
+        asset[field] = v;
       });
+      if (asset.asset_code != null) asset.asset_code = String(asset.asset_code);
       asset.created_at = asset.created_at || new Date().toISOString();
       asset.updated_at = new Date().toISOString();
       await db.putAsset(asset);
       success++;
     } catch (e) { failed++; errors.push(`Row ${i + 1}: ${e.message}`); }
   }
-  alert(`Import: ${success} success, ${failed} failed\n${errors.slice(0, 5).join('\n')}`);
+  alert(`导入完成: ${success} 条成功, ${failed} 条失败\n${errors.slice(0, 5).join('\n')}`);
   await loadAssets();
   input.value = '';
 }
