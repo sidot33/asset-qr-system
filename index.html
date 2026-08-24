@@ -590,7 +590,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   // Init task dates
-  document.getElementById('task_id').value = 'TASK-' + Date.now();
   document.getElementById('task_start').value = new Date().toISOString().split('T')[0];
   document.getElementById('task_end').value = new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0];
 
@@ -1053,7 +1052,16 @@ async function saveAssignAssets() {
   alert('资产分配已保存');
 }
 
+function generateUniqueTaskId() {
+  let id;
+  do {
+    id = String(Math.floor(Math.random() * 1000000)).padStart(6, '0');
+  } while (tasks && tasks.some(t => t.task_id === id));
+  return id;
+}
+
 async function openTaskModal() {
+  document.getElementById('task_id').value = generateUniqueTaskId();
   document.getElementById('taskModal').classList.add('active');
   const container = document.getElementById('taskAssetSelect');
   const allAssets = await db.getAllAssets();
@@ -1071,8 +1079,14 @@ async function openTaskModal() {
 async function saveTask() {
   const assetCodes = Array.from(document.querySelectorAll('.task-asset-check:checked')).map(cb => cb.value);
   const personsRaw = document.getElementById('task_persons').value.trim();
+  let taskId = document.getElementById('task_id').value;
+  // 防重复：若 task_id 已被占用（极端并发或手动修改），重新生成
+  if (tasks.some(t => t.task_id === taskId)) {
+    taskId = generateUniqueTaskId();
+    document.getElementById('task_id').value = taskId;
+  }
   const task = {
-    task_id: document.getElementById('task_id').value,
+    task_id: taskId,
     task_name: document.getElementById('task_name').value,
     start_date: document.getElementById('task_start').value,
     end_date: document.getElementById('task_end').value,
