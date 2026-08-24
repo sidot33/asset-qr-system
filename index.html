@@ -93,6 +93,34 @@ tr:hover { background: #f5f5f5; }
 .spinner { width: 40px; height: 40px; border: 3px solid #f3f3f3; border-top: 3px solid #0074b7; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 15px; }
 @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 .notice { background: #fffbe6; border: 1px solid #ffe58f; border-radius: 8px; padding: 10px 12px; font-size: 12px; color: #d48806; margin-bottom: 12px; }
+.task-list { display: flex; flex-direction: column; gap: 8px; }
+.task-item {
+  padding: 12px 14px;
+  border: 2px solid #e8f4fc;
+  border-radius: 8px;
+  background: #fff;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.task-item:active { transform: scale(0.98); }
+.task-item.selected { border-color: #0074b7; background: #e8f4fc; }
+.task-item .task-name { font-size: 14px; font-weight: 500; color: #333; }
+.task-item .task-date { font-size: 12px; color: #999; margin-top: 2px; }
+.task-item .check-icon {
+  width: 20px; height: 20px;
+  border: 2px solid #d9d9d9;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  color: transparent;
+  transition: all 0.2s;
+}
+.task-item.selected .check-icon { border-color: #0074b7; background: #0074b7; color: #fff; }
 </style>
 </head>
 <body>
@@ -775,7 +803,7 @@ async function renderScanAsset(a) {
       <div class="notice">请核对资产实际信息，如有差异请在下方填写实际情况。</div>
       <div class="form-group"><label>盘点人姓名 *</label><input type="text" id="inventoryPerson" placeholder="请输入您的姓名"></div>
       <div class="form-group"><label>实际存放地点 *</label><input type="text" id="actualLocation" value="${a.location}"></div>
-      <div class="form-group"><label>盘点任务 *</label><select id="scanTaskSelect"><option value="">请选择盘点任务</option></select></div>
+      <div class="form-group"><label>盘点任务 *</label><input type="hidden" id="selectedTaskId"><div id="scanTaskList" class="task-list"><div class="notice">正在加载盘点任务...</div></div></div>
     </div>
   `;
   actionBar.style.display = 'flex';
@@ -784,14 +812,30 @@ async function renderScanAsset(a) {
 
   // Load tasks
   const tasks = await db.getAllTasks();
-  const sel = document.getElementById('scanTaskSelect');
-  if (sel) sel.innerHTML = '<option value="">请选择盘点任务</option>' + tasks.filter(t => t.status === '进行中').map(t => `<option value="${t.task_id}">${t.task_name}</option>`).join('');
+  const container = document.getElementById('scanTaskList');
+  const activeTasks = tasks.filter(t => t.status === '进行中');
+  if (activeTasks.length === 0) {
+    if (container) container.innerHTML = '<div class="notice">暂无进行中的盘点任务，请在管理后台创建</div>';
+  } else if (container) {
+    container.innerHTML = activeTasks.map(t => `
+      <div class="task-item" data-task-id="${t.task_id}" onclick="selectTask(this)">
+        <div><div class="task-name">${t.task_name}</div><div class="task-date">${t.start_date} 至 ${t.end_date}</div></div>
+        <div class="check-icon">&#10003;</div>
+      </div>
+    `).join('');
+  }
+}
+
+function selectTask(el) {
+  document.querySelectorAll('.task-item').forEach(item => item.classList.remove('selected'));
+  el.classList.add('selected');
+  document.getElementById('selectedTaskId').value = el.dataset.taskId;
 }
 
 async function confirmInventory() {
   const person = document.getElementById('inventoryPerson')?.value.trim();
   const location = document.getElementById('actualLocation')?.value.trim();
-  const taskId = document.getElementById('scanTaskSelect')?.value || '';
+  const taskId = document.getElementById('selectedTaskId')?.value || '';
   const btn = document.getElementById('confirmBtn');
   const assetCode = btn.dataset.assetCode;
   const originalLocation = btn.dataset.location;
