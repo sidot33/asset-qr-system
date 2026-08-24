@@ -183,7 +183,7 @@ tr:hover { background: #f5f5f5; }
 <button class="btn btn-primary" onclick="openAssignAssetModal()">为该任务分配资产</button>
 </div>
 <table>
-<thead><tr><th>任务ID</th><th>任务名称</th><th>开始日期</th><th>结束日期</th><th>状态</th><th>操作</th></tr></thead>
+<thead><tr><th>任务ID</th><th>任务名称</th><th>开始日期</th><th>结束日期</th><th>绑定盘点人</th><th>状态</th><th>操作</th></tr></thead>
 <tbody id="taskTable"></tbody>
 </table>
 </div>
@@ -312,6 +312,7 @@ tr:hover { background: #f5f5f5; }
 <div class="form-group"><label>任务名称</label><input type="text" id="task_name" placeholder="如：2024年度年终盘点"></div>
 <div class="form-group"><label>开始日期</label><input type="date" id="task_start"></div>
 <div class="form-group"><label>结束日期</label><input type="date" id="task_end"></div>
+<div class="form-group"><label>绑定盘点人</label><input type="text" id="task_persons" placeholder="如：张三,李四,王五（多个用逗号分隔）"></div>
 <div class="form-group"><label>选择盘点资产</label><div id="taskAssetSelect" style="max-height:200px;overflow-y:auto;border:1px solid #d9d9d9;border-radius:6px;padding:8px;"><div class="notice" style="margin:0;">加载资产列表...</div></div></div>
 </div>
 <div class="modal-footer">
@@ -821,41 +822,16 @@ async function renderScanAsset(a) {
       <div class="notice">请核对资产实际信息，如有差异请在下方填写实际情况。</div>
       <div class="form-group"><label>盘点人姓名 *</label><input type="text" id="inventoryPerson" placeholder="请输入您的姓名"></div>
       <div class="form-group"><label>实际存放地点 *</label><input type="text" id="actualLocation" value="${a.location}"></div>
-      <div class="form-group"><label>盘点任务（可选）</label><input type="hidden" id="selectedTaskId"><div id="scanTaskList" class="task-list"><div class="notice">正在加载盘点任务...</div></div><div style="margin-top:10px;"><label style="font-size:13px;color:#666;margin-bottom:4px;display:block;">或手动输入任务ID</label><input type="text" id="manualTaskId" placeholder="如：TASK-1234567890" style="width:100%;padding:12px;border:1px solid #d9d9d9;border-radius:8px;font-size:15px;" oninput="document.getElementById('selectedTaskId').value=this.value;document.querySelectorAll('.task-item').forEach(i=>i.classList.remove('selected'));"></div></div>
     </div>
   `;
   actionBar.style.display = 'flex';
   document.getElementById('confirmBtn').dataset.assetCode = a.asset_code;
   document.getElementById('confirmBtn').dataset.location = a.location;
-
-  // Load tasks
-  const tasks = await db.getAllTasks();
-  const container = document.getElementById('scanTaskList');
-  const activeTasks = tasks.filter(t => t.status === '进行中');
-  if (activeTasks.length === 0) {
-    if (container) container.innerHTML = '<div class="notice">暂无进行中的盘点任务，请在管理后台创建</div>';
-  } else if (container) {
-    container.innerHTML = activeTasks.map(t => `
-      <div class="task-item" data-task-id="${t.task_id}" onclick="selectTask(this)">
-        <div><div class="task-name">${t.task_name}</div><div class="task-date">${t.start_date} 至 ${t.end_date}</div></div>
-        <div class="check-icon">&#10003;</div>
-      </div>
-    `).join('');
-  }
-}
-
-function selectTask(el) {
-  document.querySelectorAll('.task-item').forEach(item => item.classList.remove('selected'));
-  el.classList.add('selected');
-  document.getElementById('selectedTaskId').value = el.dataset.taskId;
-  const manual = document.getElementById('manualTaskId');
-  if (manual) manual.value = '';
 }
 
 async function confirmInventory() {
   const person = document.getElementById('inventoryPerson')?.value.trim();
   const location = document.getElementById('actualLocation')?.value.trim();
-  const taskId = document.getElementById('selectedTaskId')?.value || '';
   const btn = document.getElementById('confirmBtn');
   const assetCode = btn.dataset.assetCode;
   const originalLocation = btn.dataset.location;
@@ -866,7 +842,7 @@ async function confirmInventory() {
 
   await db.addRecord({
     asset_code: assetCode, inventory_person: person, inventory_time: new Date().toISOString(),
-    original_location: originalLocation, actual_location: location, status, task_id: taskId || null
+    original_location: originalLocation, actual_location: location, status
   });
 
   // 更新资产状态为已盘点
@@ -890,7 +866,9 @@ async function loadTasks() {
   tasks = await db.getAllTasks();
   document.getElementById('taskTable').innerHTML = tasks.map(t => {
     const assetCount = (t.asset_codes || []).length;
+    const persons = (t.inventory_persons || []).join(', ') || '-';
     return `<tr><td>${t.task_id}</td><td>${t.task_name}</td><td>${t.start_date}</td><td>${t.end_date}</td>
+    <td>${persons}</td>
     <td><span class="tag ${t.status === '进行中' ? 'tag-success' : 'tag-secondary'}">${t.status}</span></td>
     <td><button class="btn btn-primary" style="padding:4px 8px;font-size:12px;" onclick="editTaskAssets('${t.task_id}')">分配资产(${assetCount})</button>
     <button class="btn btn-primary" style="padding:4px 8px;font-size:12px;" onclick="viewTaskReport('${t.task_id}')">查看</button></td></tr>`;
@@ -966,12 +944,14 @@ async function openTaskModal() {
 }
 async function saveTask() {
   const assetCodes = Array.from(document.querySelectorAll('.task-asset-check:checked')).map(cb => cb.value);
+  const personsRaw = document.getElementById('task_persons').value.trim();
   const task = {
     task_id: document.getElementById('task_id').value,
     task_name: document.getElementById('task_name').value,
     start_date: document.getElementById('task_start').value,
     end_date: document.getElementById('task_end').value,
     status: '进行中',
+    inventory_persons: personsRaw ? personsRaw.split(',').map(s => s.trim()).filter(Boolean) : [],
     asset_codes: assetCodes
   };
   if (!task.task_name || !task.start_date || !task.end_date) { alert('请填写完整信息'); return; }
@@ -989,6 +969,7 @@ async function generateReport() {
 
   const task = tasks.find(t => t.task_id === taskId);
   const assignedCodes = task?.asset_codes || [];
+  const boundPersons = task?.inventory_persons || [];
   if (assignedCodes.length === 0) {
     document.getElementById('reportContent').innerHTML = `<div class="card"><div class="notice">该盘点任务尚未分配资产，请先在盘点任务页分配资产。</div></div>`;
     return;
@@ -997,12 +978,25 @@ async function generateReport() {
   const allAssets = await db.getAllAssets();
   const assignedAssets = allAssets.filter(a => assignedCodes.includes(a.asset_code));
   const allRecords = await db.getAllRecords();
-  const taskRecords = allRecords.filter(r => r.task_id === taskId);
-  const checkedMap = new Map(taskRecords.map(r => [r.asset_code, r]));
+
+  // 只取该任务绑定的盘点人提交的记录，且资产在该任务分配列表中
+  const taskRecords = allRecords.filter(r =>
+    assignedCodes.includes(r.asset_code) &&
+    boundPersons.includes(r.inventory_person)
+  );
+
+  // 同一资产可能有多条记录，取最新一条
+  const latestRecordMap = new Map();
+  for (const r of taskRecords) {
+    const existing = latestRecordMap.get(r.asset_code);
+    if (!existing || new Date(r.inventory_time) > new Date(existing.inventory_time)) {
+      latestRecordMap.set(r.asset_code, r);
+    }
+  }
 
   let diffItems = [];
   for (const asset of assignedAssets) {
-    const rec = checkedMap.get(asset.asset_code);
+    const rec = latestRecordMap.get(asset.asset_code);
     const diff_type = rec ? '已盘点' : '未盘点';
     diffItems.push({
       asset_code: asset.asset_code, asset_name: asset.asset_name, diff_type,
@@ -1017,11 +1011,12 @@ async function generateReport() {
     diffItems = diffItems.filter(i => i.diff_type === statusFilter);
   }
 
+  const checkedCount = diffItems.filter(i => i.diff_type === '已盘点').length;
   const content = document.getElementById('reportContent');
   content.innerHTML = `
     <div class="card"><h3 style="margin-bottom:12px;color:#0074b7;">盘点报告 - ${taskId}</h3>
-    <p>任务分配资产: ${assignedAssets.length} | 已盘点: ${taskRecords.length} | 未盘点: ${assignedAssets.length - taskRecords.length} | 筛选: ${statusFilter}</p>
-    <p>生成时间: ${new Date().toLocaleString()}</p>
+    <p>任务分配资产: ${assignedAssets.length} | 已盘点: ${checkedCount} | 未盘点: ${assignedAssets.length - checkedCount} | 筛选: ${statusFilter}</p>
+    <p>绑定盘点人: ${boundPersons.join(', ') || '无'} | 生成时间: ${new Date().toLocaleString()}</p>
     <div style="margin-top:12px;"><button class="btn btn-success" onclick="exportDiffReport()">导出Excel</button></div>
     <table style="margin-top:12px;"><thead><tr><th>资产编号</th><th>资产名称</th><th>盘点情况</th><th>账面净值</th><th>台账地点</th><th>实际地点</th><th>实际盘点时间</th><th>盘点人员</th></tr></thead>
     <tbody>${diffItems.map(item => `<tr><td>${item.asset_code}</td><td>${item.asset_name}</td><td>${getDiffTag(item.diff_type)}</td><td>${item.book_value || '-'}</td><td>${item.expected_location || '-'}</td><td>${item.actual_location || '-'}</td><td>${item.inventory_time ? new Date(item.inventory_time).toLocaleString() : '-'}</td><td>${item.inventory_person || '-'}</td></tr>`).join('')}</tbody>
