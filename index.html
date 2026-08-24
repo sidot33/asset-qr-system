@@ -161,7 +161,7 @@ tr:hover { background: #f5f5f5; }
 <input type="text" class="search-box" id="searchInput" placeholder="搜索资产编号/名称/RFID..." oninput="renderTable()">
 <select class="search-box" id="deptFilter" onchange="renderTable()"><option value="">全部部门</option></select>
 <select class="search-box" id="statusFilter" onchange="renderTable()">
-<option value="">全部状态</option><option value="在用">在用</option><option value="闲置">闲置</option><option value="维修">维修</option><option value="报废">报废</option>
+<option value="">全部状态</option><option value="在用">在用</option><option value="闲置">闲置</option><option value="维修">维修</option><option value="报废">报废</option><option value="已盘点">已盘点</option>
 </select>
 </div>
 <table>
@@ -179,6 +179,8 @@ tr:hover { background: #f5f5f5; }
 <div class="card">
 <div class="toolbar">
 <button class="btn btn-primary" onclick="openTaskModal()">+ 新建盘点任务</button>
+<select class="search-box" id="toolbarTaskSelect" style="min-width:180px;"><option value="">选择盘点任务</option></select>
+<button class="btn btn-primary" onclick="openAssignAssetModal()">为该任务分配资产</button>
 </div>
 <table>
 <thead><tr><th>任务ID</th><th>任务名称</th><th>开始日期</th><th>结束日期</th><th>状态</th><th>操作</th></tr></thead>
@@ -267,7 +269,7 @@ tr:hover { background: #f5f5f5; }
 <div class="form-group"><label>月折旧额</label><input type="number" id="monthly_depreciation_amount" step="0.01"></div>
 </div>
 <div class="form-row">
-<div class="form-group"><label>资产状态 *</label><select id="status" required><option value="在用">在用</option><option value="闲置">闲置</option><option value="维修">维修</option><option value="报废">报废</option></select></div>
+<div class="form-group"><label>资产状态 *</label><select id="status" required><option value="在用">在用</option><option value="闲置">闲置</option><option value="维修">维修</option><option value="报废">报废</option><option value="已盘点">已盘点</option></select></div>
 <div class="form-group"><label>可扫描</label><select id="scanable"><option value="">请选择</option><option value="是">是</option><option value="否">否</option></select></div>
 <div class="form-group"><label>RFID标签号</label><input type="text" id="rfid_tag" placeholder="扫描或输入RFID"></div>
 </div>
@@ -303,17 +305,33 @@ tr:hover { background: #f5f5f5; }
 
 <!-- Task Modal -->
 <div class="modal" id="taskModal">
-<div class="modal-content" style="max-width: 500px;">
+<div class="modal-content" style="max-width: 600px;">
 <div class="modal-header"><h3>新建盘点任务</h3><button class="close-btn" onclick="closeModal('taskModal')">&times;</button></div>
 <div class="modal-body">
 <div class="form-group"><label>任务ID</label><input type="text" id="task_id" readonly></div>
 <div class="form-group"><label>任务名称</label><input type="text" id="task_name" placeholder="如：2024年度年终盘点"></div>
 <div class="form-group"><label>开始日期</label><input type="date" id="task_start"></div>
 <div class="form-group"><label>结束日期</label><input type="date" id="task_end"></div>
+<div class="form-group"><label>选择盘点资产</label><div id="taskAssetSelect" style="max-height:200px;overflow-y:auto;border:1px solid #d9d9d9;border-radius:6px;padding:8px;"><div class="notice" style="margin:0;">加载资产列表...</div></div></div>
 </div>
 <div class="modal-footer">
 <button type="button" class="btn btn-secondary" onclick="closeModal('taskModal')">取消</button>
 <button type="button" class="btn btn-primary" onclick="saveTask()">创建</button>
+</div>
+</div>
+</div>
+
+<!-- Assign Asset to Task Modal -->
+<div class="modal" id="assignAssetModal">
+<div class="modal-content" style="max-width: 600px;">
+<div class="modal-header"><h3>分配资产到盘点任务</h3><button class="close-btn" onclick="closeModal('assignAssetModal')">&times;</button></div>
+<div class="modal-body">
+<div class="form-group"><label>当前任务</label><input type="text" id="assignTaskId" readonly style="background:#f5f5f5;"></div>
+<div class="form-group"><label>选择资产</label><div id="assignAssetList" style="max-height:300px;overflow-y:auto;border:1px solid #d9d9d9;border-radius:6px;padding:8px;"><div class="notice" style="margin:0;">加载资产列表...</div></div></div>
+</div>
+<div class="modal-footer">
+<button type="button" class="btn btn-secondary" onclick="closeModal('assignAssetModal')">取消</button>
+<button type="button" class="btn btn-primary" onclick="saveAssignAssets()">保存</button>
 </div>
 </div>
 </div>
@@ -580,7 +598,7 @@ function renderTable() {
 }
 
 function getStatusTag(status) {
-  const map = { '在用': '<span class="tag tag-success">在用</span>', '闲置': '<span class="tag tag-info">闲置</span>', '维修': '<span class="tag tag-warning">维修</span>', '报废': '<span class="tag tag-danger">报废</span>' };
+  const map = { '在用': '<span class="tag tag-success">在用</span>', '闲置': '<span class="tag tag-info">闲置</span>', '维修': '<span class="tag tag-warning">维修</span>', '报废': '<span class="tag tag-danger">报废</span>', '已盘点': '<span class="tag tag-success">已盘点</span>' };
   return map[status] || status;
 }
 
@@ -785,7 +803,7 @@ async function loadScanPageByRFID(rfidTag) {
 async function renderScanAsset(a) {
   const content = document.getElementById('scanContent');
   const actionBar = document.getElementById('scanActionBar');
-  const statusMap = { '在用': 'status-IN_USE', '闲置': 'status-IDLE', '维修': 'status-REPAIR', '报废': 'status-SCRAPPED' };
+  const statusMap = { '在用': 'status-IN_USE', '闲置': 'status-IDLE', '维修': 'status-REPAIR', '报废': 'status-SCRAPPED', '已盘点': 'status-IN_USE' };
   const s = statusMap[a.status] || '';
 
   const rfidDisplay = a.rfid_tag ? `<div class="info-row"><span class="info-label">RFID标签</span><span class="info-value" style="color:#667eea;font-weight:600;">${a.rfid_tag}</span></div>` : '';
@@ -803,7 +821,7 @@ async function renderScanAsset(a) {
       <div class="notice">请核对资产实际信息，如有差异请在下方填写实际情况。</div>
       <div class="form-group"><label>盘点人姓名 *</label><input type="text" id="inventoryPerson" placeholder="请输入您的姓名"></div>
       <div class="form-group"><label>实际存放地点 *</label><input type="text" id="actualLocation" value="${a.location}"></div>
-      <div class="form-group"><label>盘点任务 *</label><input type="hidden" id="selectedTaskId"><div id="scanTaskList" class="task-list"><div class="notice">正在加载盘点任务...</div></div><div style="margin-top:10px;"><label style="font-size:13px;color:#666;margin-bottom:4px;display:block;">或手动输入任务ID</label><input type="text" id="manualTaskId" placeholder="如：TASK-1234567890" style="width:100%;padding:12px;border:1px solid #d9d9d9;border-radius:8px;font-size:15px;" oninput="document.getElementById('selectedTaskId').value=this.value;document.querySelectorAll('.task-item').forEach(i=>i.classList.remove('selected'));"></div></div>
+      <div class="form-group"><label>盘点任务（可选）</label><input type="hidden" id="selectedTaskId"><div id="scanTaskList" class="task-list"><div class="notice">正在加载盘点任务...</div></div><div style="margin-top:10px;"><label style="font-size:13px;color:#666;margin-bottom:4px;display:block;">或手动输入任务ID</label><input type="text" id="manualTaskId" placeholder="如：TASK-1234567890" style="width:100%;padding:12px;border:1px solid #d9d9d9;border-radius:8px;font-size:15px;" oninput="document.getElementById('selectedTaskId').value=this.value;document.querySelectorAll('.task-item').forEach(i=>i.classList.remove('selected'));"></div></div>
     </div>
   `;
   actionBar.style.display = 'flex';
@@ -843,7 +861,6 @@ async function confirmInventory() {
   const originalLocation = btn.dataset.location;
   if (!person) { alert('请输入盘点人姓名'); return; }
   if (!location) { alert('请输入实际存放地点'); return; }
-  if (!taskId) { alert('请选择盘点任务'); return; }
 
   const status = originalLocation === location ? '正常' : '位置不符';
 
@@ -851,6 +868,14 @@ async function confirmInventory() {
     asset_code: assetCode, inventory_person: person, inventory_time: new Date().toISOString(),
     original_location: originalLocation, actual_location: location, status, task_id: taskId || null
   });
+
+  // 更新资产状态为已盘点
+  const asset = await db.getAsset(assetCode);
+  if (asset) {
+    asset.status = '已盘点';
+    asset.updated_at = new Date().toISOString();
+    await db.putAsset(asset);
+  }
 
   document.getElementById('scanContent').innerHTML = `
     <div class="success-box"><div style="font-size:48px;color:#52c41a;margin-bottom:10px;">&#10004;</div>
@@ -863,24 +888,91 @@ async function confirmInventory() {
 // ===================== Tasks =====================
 async function loadTasks() {
   tasks = await db.getAllTasks();
-  document.getElementById('taskTable').innerHTML = tasks.map(t => `
-    <tr><td>${t.task_id}</td><td>${t.task_name}</td><td>${t.start_date}</td><td>${t.end_date}</td>
+  document.getElementById('taskTable').innerHTML = tasks.map(t => {
+    const assetCount = (t.asset_codes || []).length;
+    return `<tr><td>${t.task_id}</td><td>${t.task_name}</td><td>${t.start_date}</td><td>${t.end_date}</td>
     <td><span class="tag ${t.status === '进行中' ? 'tag-success' : 'tag-secondary'}">${t.status}</span></td>
-    <td><button class="btn btn-primary" style="padding:4px 8px;font-size:12px;" onclick="viewTaskReport('${t.task_id}')">查看</button></td></tr>
-  `).join('');
+    <td><button class="btn btn-primary" style="padding:4px 8px;font-size:12px;" onclick="editTaskAssets('${t.task_id}')">分配资产(${assetCount})</button>
+    <button class="btn btn-primary" style="padding:4px 8px;font-size:12px;" onclick="viewTaskReport('${t.task_id}')">查看</button></td></tr>`;
+  }).join('');
 
   const sel = document.getElementById('reportTaskSelect');
   sel.innerHTML = '<option value="">选择盘点任务</option>' + tasks.map(t => `<option value="${t.task_id}">${t.task_name} (${t.task_id})</option>`).join('');
+
+  const toolbarSel = document.getElementById('toolbarTaskSelect');
+  if (toolbarSel) toolbarSel.innerHTML = '<option value="">选择盘点任务</option>' + tasks.filter(t => t.status === '进行中').map(t => `<option value="${t.task_id}">${t.task_name}</option>`).join('');
 }
 
-function openTaskModal() { document.getElementById('taskModal').classList.add('active'); }
+async function editTaskAssets(taskId) {
+  const task = tasks.find(t => t.task_id === taskId);
+  if (!task) return;
+  const allAssets = await db.getAllAssets();
+  const selected = new Set(task.asset_codes || []);
+  const codes = prompt('请输入该任务要盘点的资产编号（多个用逗号分隔）：', (task.asset_codes || []).join(', '));
+  if (codes === null) return;
+  task.asset_codes = codes.split(',').map(s => s.trim()).filter(Boolean);
+  await db.putTask(task);
+  await loadTasks();
+}
+
+async function openAssignAssetModal() {
+  const taskId = document.getElementById('toolbarTaskSelect').value;
+  if (!taskId) { alert('请先在操作栏选择盘点任务'); return; }
+  const task = tasks.find(t => t.task_id === taskId);
+  if (!task) return;
+  document.getElementById('assignTaskId').value = task.task_name + ' (' + task.task_id + ')';
+  document.getElementById('assignAssetModal').classList.add('active');
+
+  const allAssets = await db.getAllAssets();
+  const selected = new Set(task.asset_codes || []);
+  const container = document.getElementById('assignAssetList');
+  if (allAssets.length === 0) {
+    container.innerHTML = '<div class="notice" style="margin:0;">暂无资产</div>';
+  } else {
+    container.innerHTML = allAssets.map(a => `
+      <label style="display:flex;align-items:center;gap:8px;padding:6px 0;cursor:pointer;font-size:13px;">
+        <input type="checkbox" class="assign-asset-check" value="${a.asset_code}" ${selected.has(a.asset_code) ? 'checked' : ''} style="width:auto;">
+        <span>${a.asset_code} - ${a.asset_name} (${a.department})</span>
+      </label>
+    `).join('');
+  }
+}
+
+async function saveAssignAssets() {
+  const taskId = document.getElementById('toolbarTaskSelect').value;
+  const task = tasks.find(t => t.task_id === taskId);
+  if (!task) return;
+  task.asset_codes = Array.from(document.querySelectorAll('.assign-asset-check:checked')).map(cb => cb.value);
+  await db.putTask(task);
+  closeModal('assignAssetModal');
+  await loadTasks();
+  alert('资产分配已保存');
+}
+
+async function openTaskModal() {
+  document.getElementById('taskModal').classList.add('active');
+  const container = document.getElementById('taskAssetSelect');
+  const allAssets = await db.getAllAssets();
+  if (allAssets.length === 0) {
+    container.innerHTML = '<div class="notice" style="margin:0;">暂无资产，请先添加资产</div>';
+  } else {
+    container.innerHTML = allAssets.map(a => `
+      <label style="display:flex;align-items:center;gap:8px;padding:6px 0;cursor:pointer;font-size:13px;">
+        <input type="checkbox" class="task-asset-check" value="${a.asset_code}" style="width:auto;">
+        <span>${a.asset_code} - ${a.asset_name} (${a.department})</span>
+      </label>
+    `).join('');
+  }
+}
 async function saveTask() {
+  const assetCodes = Array.from(document.querySelectorAll('.task-asset-check:checked')).map(cb => cb.value);
   const task = {
     task_id: document.getElementById('task_id').value,
     task_name: document.getElementById('task_name').value,
     start_date: document.getElementById('task_start').value,
     end_date: document.getElementById('task_end').value,
-    status: '进行中'
+    status: '进行中',
+    asset_codes: assetCodes
   };
   if (!task.task_name || !task.start_date || !task.end_date) { alert('请填写完整信息'); return; }
   await db.putTask(task);
@@ -894,13 +986,22 @@ async function generateReport() {
   const taskId = document.getElementById('reportTaskSelect').value;
   if (!taskId) { alert('请选择盘点任务'); return; }
   const statusFilter = document.getElementById('reportStatusFilter').value;
+
+  const task = tasks.find(t => t.task_id === taskId);
+  const assignedCodes = task?.asset_codes || [];
+  if (assignedCodes.length === 0) {
+    document.getElementById('reportContent').innerHTML = `<div class="card"><div class="notice">该盘点任务尚未分配资产，请先在盘点任务页分配资产。</div></div>`;
+    return;
+  }
+
   const allAssets = await db.getAllAssets();
+  const assignedAssets = allAssets.filter(a => assignedCodes.includes(a.asset_code));
   const allRecords = await db.getAllRecords();
   const taskRecords = allRecords.filter(r => r.task_id === taskId);
   const checkedMap = new Map(taskRecords.map(r => [r.asset_code, r]));
 
   let diffItems = [];
-  for (const asset of allAssets) {
+  for (const asset of assignedAssets) {
     const rec = checkedMap.get(asset.asset_code);
     const diff_type = rec ? '已盘点' : '未盘点';
     diffItems.push({
@@ -911,12 +1012,6 @@ async function generateReport() {
       inventory_person: rec ? rec.inventory_person : null
     });
   }
-  const assetCodes = new Set(allAssets.map(a => a.asset_code));
-  for (const rec of taskRecords) {
-    if (!assetCodes.has(rec.asset_code)) {
-      diffItems.push({ asset_code: rec.asset_code, asset_name: '未知资产', diff_type: '已盘点', book_value: null, expected_location: null, actual_location: rec.actual_location, inventory_time: rec.inventory_time, inventory_person: rec.inventory_person });
-    }
-  }
 
   if (statusFilter !== '全部') {
     diffItems = diffItems.filter(i => i.diff_type === statusFilter);
@@ -925,7 +1020,7 @@ async function generateReport() {
   const content = document.getElementById('reportContent');
   content.innerHTML = `
     <div class="card"><h3 style="margin-bottom:12px;color:#0074b7;">盘点报告 - ${taskId}</h3>
-    <p>资产总数: ${allAssets.length} | 已盘点: ${taskRecords.length} | 筛选: ${statusFilter}</p>
+    <p>任务分配资产: ${assignedAssets.length} | 已盘点: ${taskRecords.length} | 未盘点: ${assignedAssets.length - taskRecords.length} | 筛选: ${statusFilter}</p>
     <p>生成时间: ${new Date().toLocaleString()}</p>
     <div style="margin-top:12px;"><button class="btn btn-success" onclick="exportDiffReport()">导出Excel</button></div>
     <table style="margin-top:12px;"><thead><tr><th>资产编号</th><th>资产名称</th><th>盘点情况</th><th>账面净值</th><th>台账地点</th><th>实际地点</th><th>实际盘点时间</th><th>盘点人员</th></tr></thead>
