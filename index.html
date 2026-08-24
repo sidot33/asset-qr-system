@@ -8,6 +8,7 @@
 <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://imgcache.qq.com/qcloud/tcbjs/1.12.0/tcb.js"></script>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f6fa; color: #333; line-height: 1.5; }
@@ -158,6 +159,9 @@ tr:hover { background: #f5f5f5; }
 <input type="file" id="importFile" accept=".xlsx,.xls" style="display:none" onchange="importExcel(this)">
 <button class="btn btn-secondary" onclick="exportTemplate()">下载模板</button>
 <button class="btn btn-secondary" onclick="exportAssets()">导出资产</button>
+<button class="btn btn-secondary" onclick="exportAllData()">导出全部数据(JSON)</button>
+<button class="btn btn-secondary" onclick="document.getElementById('importJsonFile').click()">导入全部数据(JSON)</button>
+<input type="file" id="importJsonFile" accept=".json" style="display:none" onchange="importAllData(this)">
 <input type="text" class="search-box" id="searchInput" placeholder="搜索资产编号/名称/RFID..." oninput="renderTable()">
 <select class="search-box" id="deptFilter" onchange="renderTable()"><option value="">全部部门</option></select>
 <select class="search-box" id="statusFilter" onchange="renderTable()">
@@ -361,106 +365,134 @@ tr:hover { background: #f5f5f5; }
 </div>
 
 <script>
-// ===================== Bmob Cloud DB =====================
-class BmobAPI {
-  constructor(appId, restKey) {
-    this.appId = appId;
-    this.restKey = restKey;
-    this.base = 'https://api.bmob.cn/1';
-    this.headers = {
-      'X-Bmob-Application-Id': appId,
-      'X-Bmob-REST-API-Key': restKey,
-      'Content-Type': 'application/json'
-    };
-    this.cache = new Map();
+// ===================== 腾讯云 CloudBase =====================
+class CloudBaseDB {
+  constructor(envId) {
+    this.app = tcb.init({ env: envId });
+    this.db = null;
+    this.authed = false;
   }
-  async request(path, method = 'GET', body = null) {
-    const options = { method, headers: this.headers };
-    if (body) options.body = JSON.stringify(body);
-    const res = await fetch(`${this.base}${path}`, options);
-    if (!res.ok) {
-      const text = await res.text();
-      throw new Error(`Bmob ${method} ${path} failed: ${res.status} ${text}`);
+  async init() {
+    try {
+      await this.app.auth().signInAnonymously();
+      this.db = this.app.database();
+      this.authed = true;
+    } catch (err) {
+      console.error('CloudBase 登录失败:', err);
+      alert('CloudBase 登录失败: ' + err.message + '\n请确认已在控制台开启匿名登录。');
+      throw err;
     }
-    return res.json();
   }
 
   // Assets
   async getAllAssets() {
-    const data = await this.request('/classes/Asset?limit=1000');
-    const assets = data.results || [];
-    assets.forEach(a => { if (a.objectId) this.cache.set(a.asset_code, a.objectId); });
-    return assets;
+    const res = await this.db.collection('assets').limit(1000).get();
+    return res.data || [];
   }
   async getAsset(code) {
     const key = String(code);
-    const cached = this.cache.get(key);
-    if (cached) {
-      try { return await this.request(`/classes/Asset/${cached}`); } catch (e) { this.cache.delete(key); }
-    }
-    const data = await this.request(`/classes/Asset?where=${encodeURIComponent(JSON.stringify({asset_code: key}))}`);
-    if (data.results && data.results.length > 0) {
-      this.cache.set(key, data.results[0].objectId);
-      return data.results[0];
-    }
-    return null;
+    const res = await this.db.collection('assets').where({ asset_code: key }).limit(1).get();
+    return res.data && res.data[0] ? res.data[0] : null;
   }
   async putAsset(asset) {
     if (asset.asset_code != null) asset.asset_code = String(asset.asset_code);
     const existing = await this.getAsset(asset.asset_code);
     if (existing) {
-      await this.request(`/classes/Asset/${existing.objectId}`, 'PUT', asset);
+      const { _id, ...updateData } = asset;
+      await this.db.collection('assets').doc(existing._id).update({ data: updateData });
     } else {
-      const res = await this.request('/classes/Asset', 'POST', asset);
-      this.cache.set(asset.asset_code, res.objectId);
+      await this.db.collection('assets').add({ data: asset });
     }
   }
   async deleteAsset(code) {
     const key = String(code);
     const existing = await this.getAsset(key);
     if (existing) {
-      await this.request(`/classes/Asset/${existing.objectId}`, 'DELETE');
-      this.cache.delete(key);
+      await this.db.collection('assets').doc(existing._id).remove();
     }
   }
 
   // Tasks
   async getAllTasks() {
-    const data = await this.request('/classes/InventoryTask?limit=1000');
-    return data.results || [];
+    const res = await this.db.collection('inventory_tasks').limit(1000).get();
+    return res.data || [];
   }
   async getTask(taskId) {
-    const data = await this.request(`/classes/InventoryTask?where=${encodeURIComponent(JSON.stringify({task_id: taskId}))}`);
-    return data.results && data.results[0] ? data.results[0] : null;
+    const res = await this.db.collection('inventory_tasks').where({ task_id: taskId }).limit(1).get();
+    return res.data && res.data[0] ? res.data[0] : null;
   }
   async putTask(task) {
     const existing = await this.getTask(task.task_id);
     if (existing) {
-      await this.request(`/classes/InventoryTask/${existing.objectId}`, 'PUT', task);
+      const { _id, ...updateData } = task;
+      await this.db.collection('inventory_tasks').doc(existing._id).update({ data: updateData });
     } else {
-      const res = await this.request('/classes/InventoryTask', 'POST', task);
-      if (res.objectId) this.cache.set('task:' + task.task_id, res.objectId);
+      await this.db.collection('inventory_tasks').add({ data: task });
+    }
+  }
+  async deleteTask(taskId) {
+    const existing = await this.getTask(taskId);
+    if (existing) {
+      await this.db.collection('inventory_tasks').doc(existing._id).remove();
     }
   }
 
   // Records
   async getAllRecords() {
-    const data = await this.request('/classes/InventoryRecord?limit=1000&order=-createdAt');
-    return data.results || [];
+    const res = await this.db.collection('inventory_records').orderBy('inventory_time', 'desc').limit(1000).get();
+    return res.data || [];
   }
   async addRecord(record) {
-    return await this.request('/classes/InventoryRecord', 'POST', record);
+    await this.db.collection('inventory_records').add({ data: record });
   }
 
-  async deleteTask(taskId) {
-    const existing = await this.getTask(taskId);
-    if (existing) {
-      await this.request(`/classes/InventoryTask/${existing.objectId}`, 'DELETE');
-      this.cache.delete('task:' + taskId);
+  // 导出全部数据
+  async exportAll() {
+    const assets = await this.getAllAssets();
+    const tasks = await this.getAllTasks();
+    const records = await this.getAllRecords();
+    return { assets, tasks, records, exportTime: new Date().toISOString() };
+  }
+
+  // 导入 JSON 数据（合并模式）
+  async importAll(data) {
+    if (!data || typeof data !== 'object') throw new Error('无效的数据格式');
+    let imported = { assets: 0, tasks: 0, records: 0 };
+    if (Array.isArray(data.assets)) {
+      for (const a of data.assets) {
+        if (a && a.asset_code) {
+          const existing = await this.getAsset(a.asset_code);
+          if (!existing) {
+            await this.putAsset(a);
+            imported.assets++;
+          }
+        }
+      }
     }
+    if (Array.isArray(data.tasks)) {
+      for (const t of data.tasks) {
+        if (t && t.task_id) {
+          const existing = await this.getAllTasks();
+          const found = existing.find(x => x.task_id === t.task_id);
+          if (!found) {
+            await this.putTask(t);
+            imported.tasks++;
+          }
+        }
+      }
+    }
+    if (Array.isArray(data.records)) {
+      for (const rec of data.records) {
+        if (rec && rec.asset_code) {
+          await this.addRecord(rec);
+          imported.records++;
+        }
+      }
+    }
+    return imported;
   }
 }
-const db = new BmobAPI('7a07a97f04adf13e9186e2f4dc5febdd', 'c9ae341f47e6b07a151d7e3ad836cbcc');
+const db = new CloudBaseDB('asset-qr-system-d6fjlhip5493ed49');
 
 // ===================== Crypto =====================
 class CryptoUtil {
@@ -529,6 +561,7 @@ function backToAdmin() {
 
 // ===================== Init =====================
 document.addEventListener('DOMContentLoaded', async () => {
+  await db.init();
   await cryptoUtil.init();
   handleRoute();
   window.addEventListener('popstate', handleRoute);
@@ -1209,6 +1242,42 @@ function exportDiffReport() {
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, '盘点报告');
   XLSX.writeFile(wb, `inventory_report_${r.taskId}.xlsx`);
+}
+
+// 导出全部数据为 JSON（跨设备同步用）
+async function exportAllData() {
+  try {
+    const data = await db.exportAll();
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `asset_backup_${new Date().toISOString().split('T')[0]}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    alert(`导出成功！\n资产: ${data.assets.length} 条\n任务: ${data.tasks.length} 条\n盘点记录: ${data.records.length} 条`);
+  } catch (err) {
+    alert('导出失败: ' + err.message);
+  }
+}
+
+// 导入全部 JSON 数据（跨设备同步用）
+async function importAllData(input) {
+  const file = input.files[0];
+  if (!file) return;
+  input.value = '';
+  try {
+    const text = await file.text();
+    const data = JSON.parse(text);
+    const imported = await db.importAll(data);
+    await loadAssets();
+    await loadTasks();
+    alert(`导入成功！\n新增资产: ${imported.assets} 条\n新增任务: ${imported.tasks} 条\n新增盘点记录: ${imported.records} 条`);
+  } catch (err) {
+    alert('导入失败: ' + err.message);
+  }
 }
 
 async function importExcel(input) {
