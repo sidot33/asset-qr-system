@@ -803,7 +803,7 @@ async function renderScanAsset(a) {
       <div class="notice">请核对资产实际信息，如有差异请在下方填写实际情况。</div>
       <div class="form-group"><label>盘点人姓名 *</label><input type="text" id="inventoryPerson" placeholder="请输入您的姓名"></div>
       <div class="form-group"><label>实际存放地点 *</label><input type="text" id="actualLocation" value="${a.location}"></div>
-      <div class="form-group"><label>盘点任务 *</label><input type="hidden" id="selectedTaskId"><div id="scanTaskList" class="task-list"><div class="notice">正在加载盘点任务...</div></div></div>
+      <div class="form-group"><label>盘点任务 *</label><input type="hidden" id="selectedTaskId"><div id="scanTaskList" class="task-list"><div class="notice">正在加载盘点任务...</div></div><div style="margin-top:10px;"><label style="font-size:13px;color:#666;margin-bottom:4px;display:block;">或手动输入任务ID</label><input type="text" id="manualTaskId" placeholder="如：TASK-1234567890" style="width:100%;padding:12px;border:1px solid #d9d9d9;border-radius:8px;font-size:15px;" oninput="document.getElementById('selectedTaskId').value=this.value;document.querySelectorAll('.task-item').forEach(i=>i.classList.remove('selected'));"></div></div>
     </div>
   `;
   actionBar.style.display = 'flex';
@@ -830,6 +830,8 @@ function selectTask(el) {
   document.querySelectorAll('.task-item').forEach(item => item.classList.remove('selected'));
   el.classList.add('selected');
   document.getElementById('selectedTaskId').value = el.dataset.taskId;
+  const manual = document.getElementById('manualTaskId');
+  if (manual) manual.value = '';
 }
 
 async function confirmInventory() {
