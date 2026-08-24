@@ -164,6 +164,11 @@ tr:hover { background: #f5f5f5; }
 <div class="card">
 <div class="toolbar">
 <select class="search-box" id="reportTaskSelect"><option value="">选择盘点任务</option></select>
+<select class="search-box" id="reportStatusFilter">
+<option value="全部">全部</option>
+<option value="已盘点">已盘点</option>
+<option value="未盘点">未盘点</option>
+</select>
 <button class="btn btn-primary" onclick="generateReport()">生成盘点报告</button>
 </div>
 <div id="reportContent"></div>
@@ -770,7 +775,7 @@ async function renderScanAsset(a) {
       <div class="notice">请核对资产实际信息，如有差异请在下方填写实际情况。</div>
       <div class="form-group"><label>盘点人姓名 *</label><input type="text" id="inventoryPerson" placeholder="请输入您的姓名"></div>
       <div class="form-group"><label>实际存放地点 *</label><input type="text" id="actualLocation" value="${a.location}"></div>
-      <div class="form-group"><label>盘点任务</label><select id="scanTaskSelect"><option value="">选择盘点任务（可选）</option></select></div>
+      <div class="form-group"><label>盘点任务 *</label><select id="scanTaskSelect"><option value="">请选择盘点任务</option></select></div>
     </div>
   `;
   actionBar.style.display = 'flex';
@@ -780,7 +785,7 @@ async function renderScanAsset(a) {
   // Load tasks
   const tasks = await db.getAllTasks();
   const sel = document.getElementById('scanTaskSelect');
-  if (sel) sel.innerHTML = '<option value="">选择盘点任务（可选）</option>' + tasks.filter(t => t.status === '进行中').map(t => `<option value="${t.task_id}">${t.task_name}</option>`).join('');
+  if (sel) sel.innerHTML = '<option value="">请选择盘点任务</option>' + tasks.filter(t => t.status === '进行中').map(t => `<option value="${t.task_id}">${t.task_name}</option>`).join('');
 }
 
 async function confirmInventory() {
@@ -792,6 +797,7 @@ async function confirmInventory() {
   const originalLocation = btn.dataset.location;
   if (!person) { alert('请输入盘点人姓名'); return; }
   if (!location) { alert('请输入实际存放地点'); return; }
+  if (!taskId) { alert('请选择盘点任务'); return; }
 
   const status = originalLocation === location ? '正常' : '位置不符';
 
@@ -841,33 +847,39 @@ function viewTaskReport(taskId) { document.querySelector('.tab[data-tab="reports
 async function generateReport() {
   const taskId = document.getElementById('reportTaskSelect').value;
   if (!taskId) { alert('请选择盘点任务'); return; }
+  const statusFilter = document.getElementById('reportStatusFilter').value;
   const allAssets = await db.getAllAssets();
   const allRecords = await db.getAllRecords();
   const taskRecords = allRecords.filter(r => r.task_id === taskId);
   const checkedMap = new Map(taskRecords.map(r => [r.asset_code, r]));
 
-  const diffItems = [];
+  let diffItems = [];
   for (const asset of allAssets) {
     const rec = checkedMap.get(asset.asset_code);
-    if (!rec) {
-      diffItems.push({ asset_code: asset.asset_code, asset_name: asset.asset_name, diff_type: '盘亏', book_value: asset.net_value || asset.purchase_price, expected_location: asset.location, actual_location: null, inventory_time: null, inventory_person: null });
-    } else if (rec.status === '位置不符') {
-      diffItems.push({ asset_code: asset.asset_code, asset_name: asset.asset_name, diff_type: '位置不符', book_value: asset.net_value || asset.purchase_price, expected_location: asset.location, actual_location: rec.actual_location, inventory_time: rec.inventory_time, inventory_person: rec.inventory_person });
-    } else {
-      diffItems.push({ asset_code: asset.asset_code, asset_name: asset.asset_name, diff_type: '已盘', book_value: asset.net_value || asset.purchase_price, expected_location: asset.location, actual_location: rec.actual_location, inventory_time: rec.inventory_time, inventory_person: rec.inventory_person });
-    }
+    const diff_type = rec ? '已盘点' : '未盘点';
+    diffItems.push({
+      asset_code: asset.asset_code, asset_name: asset.asset_name, diff_type,
+      book_value: asset.net_value || asset.purchase_price, expected_location: asset.location,
+      actual_location: rec ? rec.actual_location : null,
+      inventory_time: rec ? rec.inventory_time : null,
+      inventory_person: rec ? rec.inventory_person : null
+    });
   }
   const assetCodes = new Set(allAssets.map(a => a.asset_code));
   for (const rec of taskRecords) {
     if (!assetCodes.has(rec.asset_code)) {
-      diffItems.push({ asset_code: rec.asset_code, asset_name: '未知资产', diff_type: '盘盈', book_value: null, expected_location: null, actual_location: rec.actual_location, inventory_time: rec.inventory_time, inventory_person: rec.inventory_person });
+      diffItems.push({ asset_code: rec.asset_code, asset_name: '未知资产', diff_type: '已盘点', book_value: null, expected_location: null, actual_location: rec.actual_location, inventory_time: rec.inventory_time, inventory_person: rec.inventory_person });
     }
+  }
+
+  if (statusFilter !== '全部') {
+    diffItems = diffItems.filter(i => i.diff_type === statusFilter);
   }
 
   const content = document.getElementById('reportContent');
   content.innerHTML = `
     <div class="card"><h3 style="margin-bottom:12px;color:#0074b7;">盘点报告 - ${taskId}</h3>
-    <p>资产总数: ${allAssets.length} | 已盘点: ${taskRecords.length} | 差异数: ${diffItems.filter(i => i.diff_type !== '已盘').length}</p>
+    <p>资产总数: ${allAssets.length} | 已盘点: ${taskRecords.length} | 筛选: ${statusFilter}</p>
     <p>生成时间: ${new Date().toLocaleString()}</p>
     <div style="margin-top:12px;"><button class="btn btn-success" onclick="exportDiffReport()">导出Excel</button></div>
     <table style="margin-top:12px;"><thead><tr><th>资产编号</th><th>资产名称</th><th>盘点情况</th><th>账面净值</th><th>台账地点</th><th>实际地点</th><th>实际盘点时间</th><th>盘点人员</th></tr></thead>
@@ -878,7 +890,7 @@ async function generateReport() {
 }
 
 function getDiffTag(type) {
-  const map = { '已盘': '<span class="tag tag-success">已盘</span>', '盘盈': '<span class="tag tag-success">盘盈</span>', '盘亏': '<span class="tag tag-danger">盘亏</span>', '位置不符': '<span class="tag tag-warning">位置不符</span>' };
+  const map = { '已盘点': '<span class="tag tag-success">已盘点</span>', '未盘点': '<span class="tag tag-danger">未盘点</span>' };
   return map[type] || type;
 }
 
