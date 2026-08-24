@@ -18,8 +18,8 @@ header h1 { font-size: 22px; margin-bottom: 4px; color: #0074b7; }
 header p { color: #5a9fd4; font-size: 13px; }
 .btn { padding: 8px 16px; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; transition: all 0.2s; display: inline-block; }
 .btn-primary { background: #0074b7; color: white; }
-.btn-success { background: #28a745; color: white; }
-.btn-warning { background: #f0ad4e; color: white; }
+.btn-success { background: #0074b7; color: white; }
+.btn-warning { background: #0074b7; color: white; }
 .btn-danger { background: #dc3545; color: white; }
 .btn-secondary { background: #e8f4fc; color: #0074b7; }
 .toolbar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; align-items: center; }
@@ -335,9 +335,9 @@ async init() {
 _getStore(name, mode = 'readonly') { return this.db.transaction(name, mode).objectStore(name); }
 
 async getAllAssets() { return new Promise((r, j) => { const s = this._getStore('assets'); const req = s.getAll(); req.onsuccess = () => r(req.result); req.onerror = () => j(req.error); }); }
-async getAsset(code) { return new Promise((r, j) => { const s = this._getStore('assets'); const req = s.get(code); req.onsuccess = () => r(req.result); req.onerror = () => j(req.error); }); }
-async putAsset(asset) { return new Promise((r, j) => { const s = this._getStore('assets', 'readwrite'); const req = s.put(asset); req.onsuccess = () => r(); req.onerror = () => j(req.error); }); }
-async deleteAsset(code) { return new Promise((r, j) => { const s = this._getStore('assets', 'readwrite'); const req = s.delete(code); req.onsuccess = () => r(); req.onerror = () => j(req.error); }); }
+async getAsset(code) { const key = String(code); return new Promise((r, j) => { const s = this._getStore('assets'); const req = s.get(key); req.onsuccess = () => r(req.result); req.onerror = () => j(req.error); }); }
+async putAsset(asset) { if (asset.asset_code != null) asset.asset_code = String(asset.asset_code); return new Promise((r, j) => { const s = this._getStore('assets', 'readwrite'); const req = s.put(asset); req.onsuccess = () => r(); req.onerror = () => j(req.error); }); }
+async deleteAsset(code) { const key = String(code); return new Promise((r, j) => { const s = this._getStore('assets', 'readwrite'); const req = s.delete(key); req.onsuccess = () => r(); req.onerror = () => j(req.error); }); }
 
 async getAllTasks() { return new Promise((r, j) => { const s = this._getStore('inventory_tasks'); const req = s.getAll(); req.onsuccess = () => r(req.result); req.onerror = () => j(req.error); }); }
 async putTask(task) { return new Promise((r, j) => { const s = this._getStore('inventory_tasks', 'readwrite'); const req = s.put(task); req.onsuccess = () => r(); req.onerror = () => j(req.error); }); }
@@ -574,6 +574,7 @@ async function saveAsset() {
     });
     data.created_at = data.created_at || new Date().toISOString();
     data.updated_at = new Date().toISOString();
+    if (data.asset_code != null) data.asset_code = String(data.asset_code);
 
     await db.putAsset(data);
     closeModal('assetModal');
@@ -1022,6 +1023,7 @@ async function importExcel(input) {
         }
         asset[field] = v;
       });
+      if (asset.asset_code != null) asset.asset_code = String(asset.asset_code);
       asset.created_at = asset.created_at || new Date().toISOString();
       asset.updated_at = new Date().toISOString();
       await db.putAsset(asset);
