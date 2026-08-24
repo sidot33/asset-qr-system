@@ -427,6 +427,13 @@ class CloudBaseDB {
     const existing = await this.getTask(task.task_id);
     if (existing) {
       const { _id, ...updateData } = task;
+      // CloudBase update requires {set: value} for array fields
+      if (Array.isArray(updateData.asset_codes)) {
+        updateData.asset_codes = { set: updateData.asset_codes };
+      }
+      if (Array.isArray(updateData.inventory_persons)) {
+        updateData.inventory_persons = { set: updateData.inventory_persons };
+      }
       await this.db.collection('inventory_tasks').doc(existing._id).update(updateData);
     } else {
       await this.db.collection('inventory_tasks').add(task);
