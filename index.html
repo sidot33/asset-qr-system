@@ -196,7 +196,7 @@ tr:hover { background: #f5f5f5; }
 <select class="search-box" id="reportTaskSelect"><option value="">选择盘点任务</option></select>
 <select class="search-box" id="reportStatusFilter">
 <option value="全部">全部</option>
-<option value="已盘点">已盘点</option>
+<option value="盘点成功">盘点成功</option>
 <option value="未盘点">未盘点</option>
 </select>
 <button class="btn btn-primary" onclick="generateReport()">生成盘点报告</button>
@@ -979,11 +979,12 @@ async function generateReport() {
   const assignedAssets = allAssets.filter(a => assignedCodes.includes(a.asset_code));
   const allRecords = await db.getAllRecords();
 
-  // 只取该任务绑定的盘点人提交的记录，且资产在该任务分配列表中
-  const taskRecords = allRecords.filter(r =>
-    assignedCodes.includes(r.asset_code) &&
-    boundPersons.includes(r.inventory_person)
-  );
+  // 只取资产在该任务分配列表中的记录；若任务绑定了盘点人，则再按人过滤
+  const taskRecords = allRecords.filter(r => {
+    if (!assignedCodes.includes(r.asset_code)) return false;
+    if (boundPersons.length > 0 && !boundPersons.includes(r.inventory_person)) return false;
+    return true;
+  });
 
   // 同一资产可能有多条记录，取最新一条
   const latestRecordMap = new Map();
@@ -997,7 +998,7 @@ async function generateReport() {
   let diffItems = [];
   for (const asset of assignedAssets) {
     const rec = latestRecordMap.get(asset.asset_code);
-    const diff_type = rec ? '已盘点' : '未盘点';
+    const diff_type = rec ? '盘点成功' : '未盘点';
     diffItems.push({
       asset_code: asset.asset_code, asset_name: asset.asset_name, diff_type,
       book_value: asset.net_value || asset.purchase_price, expected_location: asset.location,
@@ -1011,11 +1012,11 @@ async function generateReport() {
     diffItems = diffItems.filter(i => i.diff_type === statusFilter);
   }
 
-  const checkedCount = diffItems.filter(i => i.diff_type === '已盘点').length;
+  const checkedCount = diffItems.filter(i => i.diff_type === '盘点成功').length;
   const content = document.getElementById('reportContent');
   content.innerHTML = `
     <div class="card"><h3 style="margin-bottom:12px;color:#0074b7;">盘点报告 - ${taskId}</h3>
-    <p>任务分配资产: ${assignedAssets.length} | 已盘点: ${checkedCount} | 未盘点: ${assignedAssets.length - checkedCount} | 筛选: ${statusFilter}</p>
+    <p>任务分配资产: ${assignedAssets.length} | 盘点成功: ${checkedCount} | 未盘点: ${assignedAssets.length - checkedCount} | 筛选: ${statusFilter}</p>
     <p>绑定盘点人: ${boundPersons.join(', ') || '无'} | 生成时间: ${new Date().toLocaleString()}</p>
     <div style="margin-top:12px;"><button class="btn btn-success" onclick="exportDiffReport()">导出Excel</button></div>
     <table style="margin-top:12px;"><thead><tr><th>资产编号</th><th>资产名称</th><th>盘点情况</th><th>账面净值</th><th>台账地点</th><th>实际地点</th><th>实际盘点时间</th><th>盘点人员</th></tr></thead>
@@ -1026,7 +1027,7 @@ async function generateReport() {
 }
 
 function getDiffTag(type) {
-  const map = { '已盘点': '<span class="tag tag-success">已盘点</span>', '未盘点': '<span class="tag tag-danger">未盘点</span>' };
+  const map = { '盘点成功': '<span class="tag tag-success">盘点成功</span>', '未盘点': '<span class="tag tag-danger">未盘点</span>' };
   return map[type] || type;
 }
 
