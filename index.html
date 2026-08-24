@@ -127,7 +127,7 @@ tr:hover { background: #f5f5f5; }
 <input type="file" id="importFile" accept=".xlsx,.xls" style="display:none" onchange="importExcel(this)">
 <button class="btn btn-secondary" onclick="exportTemplate()">下载模板</button>
 <button class="btn btn-secondary" onclick="exportAssets()">导出资产</button>
-<input type="text" class="search-box" id="searchInput" placeholder="搜索..." oninput="renderTable()">
+<input type="text" class="search-box" id="searchInput" placeholder="搜索资产编号/名称/RFID..." oninput="renderTable()">
 <select class="search-box" id="deptFilter" onchange="renderTable()"><option value="">全部部门</option></select>
 <select class="search-box" id="statusFilter" onchange="renderTable()">
 <option value="">全部状态</option><option value="在用">在用</option><option value="闲置">闲置</option><option value="维修">维修</option><option value="报废">报废</option>
@@ -136,7 +136,7 @@ tr:hover { background: #f5f5f5; }
 <table>
 <thead><tr>
 <th class="checkbox-col"><input type="checkbox" id="selectAll" onchange="toggleSelectAll()"></th>
-<th>资产编号</th><th>资产名称</th><th>分类</th><th>部门</th><th>存放地点</th><th>状态</th><th>责任人</th><th>购入价格</th><th>操作</th>
+<th>资产编号</th><th>资产名称</th><th>分类</th><th>部门</th><th>存放地点</th><th>状态</th><th>责任人</th><th>购入价格</th><th>RFID</th><th>操作</th>
 </tr></thead>
 <tbody id="assetTable"></tbody>
 </table>
@@ -208,6 +208,9 @@ tr:hover { background: #f5f5f5; }
 <div class="form-row">
 <div class="form-group"><label>入账日期</label><input type="date" id="book_date"></div>
 <div class="form-group"><label>凭证号</label><input type="text" id="voucher_no"></div>
+<div class="form-group"><label>RFID标签号</label><input type="text" id="rfid_tag" placeholder="扫描或输入RFID"></div>
+</div>
+<div class="form-row">
 <div class="form-group"><label>照片URL</label><input type="text" id="photo_url"></div>
 </div>
 <div class="form-group"><label>备注</label><textarea id="remarks" rows="3"></textarea></div>
@@ -340,10 +343,15 @@ let records = [];
 function handleRoute() {
   const params = new URLSearchParams(window.location.search);
   const scanToken = params.get('s');
+  const rfid = params.get('rfid');
   if (scanToken) {
     document.getElementById('adminPage').style.display = 'none';
     document.getElementById('scanPage').classList.add('active');
     loadScanPage(scanToken);
+  } else if (rfid) {
+    document.getElementById('adminPage').style.display = 'none';
+    document.getElementById('scanPage').classList.add('active');
+    loadScanPageByRFID(rfid);
   } else {
     document.getElementById('adminPage').style.display = 'block';
     document.getElementById('scanPage').classList.remove('active');
@@ -380,7 +388,62 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('task_id').value = 'TASK-' + Date.now();
   document.getElementById('task_start').value = new Date().toISOString().split('T')[0];
   document.getElementById('task_end').value = new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0];
+
+  // RFID scanner listener
+  initRFIDListener();
 });
+
+// ===================== RFID Scanner =====================
+let rfidBuffer = '';
+let rfidLastKeyTime = 0;
+const RFID_TIMEOUT = 120;
+const RFID_MIN_LENGTH = 4;
+
+function initRFIDListener() {
+  document.addEventListener('keydown', (e) => {
+    const now = Date.now();
+    const isInput = e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA';
+    if (isInput && e.target.id !== 'rfid_tag') {
+      rfidBuffer = '';
+      return;
+    }
+    if (now - rfidLastKeyTime > RFID_TIMEOUT) {
+      rfidBuffer = '';
+    }
+    rfidLastKeyTime = now;
+    if (e.key === 'Enter') {
+      if (rfidBuffer.length >= RFID_MIN_LENGTH) {
+        e.preventDefault();
+        handleRFIDScan(rfidBuffer);
+      }
+      rfidBuffer = '';
+      return;
+    }
+    if (e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey) {
+      rfidBuffer += e.key;
+    }
+  });
+}
+
+async function handleRFIDScan(rfidTag) {
+  const rfidInput = document.getElementById('rfid_tag');
+  const modal = document.getElementById('assetModal');
+  if (modal.classList.contains('active') && document.activeElement === rfidInput) {
+    rfidInput.value = rfidTag;
+    return;
+  }
+  // Search and navigate
+  const allAssets = await db.getAllAssets();
+  const asset = allAssets.find(a => a.rfid_tag === rfidTag);
+  if (asset) {
+    document.querySelector('.tab[data-tab="assets"]').click();
+    document.getElementById('searchInput').value = rfidTag;
+    renderTable();
+    alert(`RFID识别成功: ${asset.asset_name} (${asset.asset_code})`);
+  } else {
+    alert('未找到绑定的资产，RFID: ' + rfidTag);
+  }
+}
 
 // ===================== Assets CRUD =====================
 async function loadAssets() {
@@ -409,7 +472,7 @@ function getFilteredAssets() {
   const dept = document.getElementById('deptFilter').value;
   const status = document.getElementById('statusFilter').value;
   return assets.filter(a => {
-    if (search && !a.asset_code?.toLowerCase().includes(search) && !a.asset_name?.toLowerCase().includes(search)) return false;
+    if (search && !a.asset_code?.toLowerCase().includes(search) && !a.asset_name?.toLowerCase().includes(search) && !(a.rfid_tag && a.rfid_tag.toLowerCase().includes(search))) return false;
     if (dept && a.department !== dept) return false;
     if (status && a.status !== status) return false;
     return true;
@@ -428,7 +491,7 @@ function renderTable() {
       <td class="checkbox-col"><input type="checkbox" ${selectedAssets.has(a.asset_code) ? 'checked' : ''} onchange="toggleSelect('${a.asset_code}')"></td>
       <td>${a.asset_code}</td><td>${a.asset_name}</td><td>${a.category}</td><td>${a.department}</td>
       <td>${a.location}</td><td>${getStatusTag(a.status)}</td><td>${a.responsible_person}</td>
-      <td>${a.purchase_price || 0}</td>
+      <td>${a.purchase_price || 0}</td><td>${a.rfid_tag || '-'}</td>
       <td>
         <button class="btn btn-primary" style="padding:4px 8px;font-size:12px;" onclick="generateSingleQR('${a.asset_code}')">二维码</button>
         <button class="btn btn-warning" style="padding:4px 8px;font-size:12px;" onclick="editAsset('${a.asset_code}')">编辑</button>
@@ -495,20 +558,15 @@ async function deleteAsset(code) {
 }
 
 // ===================== QR Code =====================
-// Minify asset for QR code: only essential fields to keep URL short
+// Minify asset for QR code: ONLY 6 essential fields to keep URL short and scannable
 function minifyAsset(asset) {
   return {
     c: asset.asset_code,      // code
     n: asset.asset_name,      // name
-    g: asset.category,        // category
     d: asset.department,      // department
     l: asset.location,        // location
     s: asset.status,          // status
-    p: asset.responsible_person, // person
-    pd: asset.purchase_date,  // purchase date
-    pp: asset.purchase_price, // purchase price
-    sp: asset.spec_model,     // spec
-    br: asset.brand           // brand
+    p: asset.responsible_person // person
   };
 }
 
@@ -525,7 +583,7 @@ async function generateSingleQR(code) {
   const baseUrl = getBaseUrl();
   const url = baseUrl + '?s=' + encodeURIComponent(token);
   selectedAssets = new Set([code]);
-  showQRPreview([{ asset_code: code, asset_name: asset.asset_name, department: asset.department, location: asset.location, url }]);
+  showQRPreview([{ asset_code: code, asset_name: asset.asset_name, department: asset.department, location: asset.location, rfid_tag: asset.rfid_tag, url }]);
 }
 
 async function batchGenerateQR() {
@@ -537,7 +595,7 @@ async function batchGenerateQR() {
       const mini = minifyAsset(asset);
       const token = await cryptoUtil.encrypt(mini);
       const baseUrl = getBaseUrl();
-      items.push({ asset_code: code, asset_name: asset.asset_name, department: asset.department, location: asset.location, url: baseUrl + '?s=' + encodeURIComponent(token) });
+      items.push({ asset_code: code, asset_name: asset.asset_name, department: asset.department, location: asset.location, rfid_tag: asset.rfid_tag, url: baseUrl + '?s=' + encodeURIComponent(token) });
     }
   }
   showQRPreview(items);
@@ -548,11 +606,18 @@ function showQRPreview(items) {
     alert('二维码库加载失败，请检查网络连接后刷新页面重试。\n如果使用 GitHub Pages，可能需要等待几秒让 CDN 资源加载完成。');
     return;
   }
+  // Check URL length - warn if too long for reliable scanning
+  const maxUrlLen = 1200;
+  const tooLong = items.filter(i => i.url.length > maxUrlLen);
+  if (tooLong.length > 0) {
+    alert('警告：部分二维码数据过长（' + tooLong[0].url.length + '字符），可能导致手机扫描困难。\n建议缩短资产编号/名称等字段后重试。');
+  }
   const sheet = document.getElementById('qrSheet');
   sheet.innerHTML = '';
   items.forEach(item => {
     const label = document.createElement('div');
     label.className = 'qr-label';
+    const rfidText = item.rfid_tag ? `<div style="text-align:center;font-size:11px;font-weight:600;color:#667eea;margin-top:4px;">RFID: ${item.rfid_tag}</div>` : '';
     label.innerHTML = `
       <div class="label-header">
         <div class="label-title">固定资产标签</div>
@@ -564,16 +629,18 @@ function showQRPreview(items) {
         </table>
       </div>
       <div class="qr-wrap" id="qr-${item.asset_code}"></div>
+      ${rfidText}
     `;
     sheet.appendChild(label);
     setTimeout(() => {
       try {
         const el = document.getElementById(`qr-${item.asset_code}`);
         if (el) {
-          new QRCode(el, { text: item.url, width: 160, height: 160, colorDark: '#000', colorLight: '#fff', correctLevel: QRCode.CorrectLevel.H });
+          new QRCode(el, { text: item.url, width: 200, height: 200, colorDark: '#000', colorLight: '#fff', correctLevel: QRCode.CorrectLevel.L });
         }
       } catch (e) {
         console.error('QRCode generation failed:', e);
+        alert('二维码生成失败：' + e.message + '\n可能原因是资产信息过长，请尝试缩短资产编号或名称。');
       }
     }, 100);
   });
@@ -603,58 +670,71 @@ async function loadScanPage(token) {
     // Unified: map minified fields to full names
     let a = payload;
     if (payload.c) {
-      // Minified format from QR code
+      // Minified format from QR code (6 essential fields)
       a = {
-        asset_code: payload.c, asset_name: payload.n, category: payload.g,
+        asset_code: payload.c, asset_name: payload.n,
         department: payload.d, location: payload.l, status: payload.s,
-        responsible_person: payload.p, purchase_date: payload.pd,
-        purchase_price: payload.pp, spec_model: payload.sp, brand: payload.br
+        responsible_person: payload.p
       };
     } else if (payload.a) {
       a = await db.getAsset(payload.a);
     }
     if (!a || !a.asset_code) throw new Error('Asset not found');
-
-    const statusMap = { '在用': 'status-IN_USE', '闲置': 'status-IDLE', '维修': 'status-REPAIR', '报废': 'status-SCRAPPED' };
-    const s = statusMap[a.status] || '';
-
-    content.innerHTML = `
-      <div class="scan-card"><div class="scan-card-header"><span class="scan-code">${a.asset_code}</span><span class="tag ${s}">${a.status}</span></div>
-      <div class="scan-body">
-        <div class="info-row"><span class="info-label">资产名称</span><span class="info-value">${a.asset_name}</span></div>
-        <div class="info-row"><span class="info-label">分类</span><span class="info-value">${a.category}</span></div>
-        <div class="info-row"><span class="info-label">规格型号</span><span class="info-value">${a.spec_model || '-'}</span></div>
-        <div class="info-row"><span class="info-label">品牌</span><span class="info-value">${a.brand || '-'}</span></div>
-        <div class="info-row"><span class="info-label">购入日期</span><span class="info-value">${a.purchase_date || '-'}</span></div>
-        <div class="info-row"><span class="info-label">购入价格</span><span class="info-value">${a.purchase_price || '-'}</span></div>
-      </div></div>
-      <div class="section-title">存放与责任人</div>
-      <div class="scan-card"><div class="scan-body">
-        <div class="info-row"><span class="info-label">使用部门</span><span class="info-value">${a.department}</span></div>
-        <div class="info-row"><span class="info-label">责任人</span><span class="info-value">${a.responsible_person}</span></div>
-        <div class="info-row"><span class="info-label">台账存放地点</span><span class="info-value" id="bookLocation">${a.location}</span></div>
-      </div></div>
-      <div class="section-title">盘点确认</div>
-      <div class="confirm-box">
-        <div class="notice">请核对资产实际信息，如有差异请在下方填写实际情况。</div>
-        <div class="form-group"><label>盘点人姓名 *</label><input type="text" id="inventoryPerson" placeholder="请输入您的姓名"></div>
-        <div class="form-group"><label>实际存放地点 *</label><input type="text" id="actualLocation" value="${a.location}"></div>
-        <div class="form-group"><label>盘点任务</label><select id="scanTaskSelect"><option value="">选择盘点任务（可选）</option></select></div>
-      </div>
-    `;
-    actionBar.style.display = 'flex';
-    document.getElementById('confirmBtn').dataset.assetCode = a.asset_code;
-    document.getElementById('confirmBtn').dataset.location = a.location;
-
-    // Load tasks
-    const tasks = await db.getAllTasks();
-    const sel = document.getElementById('scanTaskSelect');
-    if (sel) sel.innerHTML = '<option value="">选择盘点任务（可选）</option>' + tasks.filter(t => t.status === '进行中').map(t => `<option value="${t.task_id}">${t.task_name}</option>`).join('');
+    renderScanAsset(a);
   } catch (e) {
     content.innerHTML = `<div class="error-box"><div style="font-size:48px;margin-bottom:10px;">&#9888;</div><p style="color:#ff4d4f;font-size:16px;">无效二维码或已过期</p><p style="margin-top:15px;color:#999;font-size:13px;">${e.message}</p></div>`;
     actionBar.style.display = 'flex';
     document.getElementById('confirmBtn').style.display = 'none';
   }
+}
+
+async function loadScanPageByRFID(rfidTag) {
+  const content = document.getElementById('scanContent');
+  const actionBar = document.getElementById('scanActionBar');
+  try {
+    const allAssets = await db.getAllAssets();
+    const a = allAssets.find(x => x.rfid_tag === rfidTag);
+    if (!a) throw new Error('RFID not bound to any asset');
+    renderScanAsset(a);
+  } catch (e) {
+    content.innerHTML = `<div class="error-box"><div style="font-size:48px;margin-bottom:10px;">&#9888;</div><p style="color:#ff4d4f;font-size:16px;">RFID未绑定资产</p><p style="margin-top:15px;color:#999;font-size:13px;">${e.message}</p></div>`;
+    actionBar.style.display = 'flex';
+    document.getElementById('confirmBtn').style.display = 'none';
+  }
+}
+
+async function renderScanAsset(a) {
+  const content = document.getElementById('scanContent');
+  const actionBar = document.getElementById('scanActionBar');
+  const statusMap = { '在用': 'status-IN_USE', '闲置': 'status-IDLE', '维修': 'status-REPAIR', '报废': 'status-SCRAPPED' };
+  const s = statusMap[a.status] || '';
+
+  const rfidDisplay = a.rfid_tag ? `<div class="info-row"><span class="info-label">RFID标签</span><span class="info-value" style="color:#667eea;font-weight:600;">${a.rfid_tag}</span></div>` : '';
+  content.innerHTML = `
+    <div class="scan-card"><div class="scan-card-header"><span class="scan-code">${a.asset_code}</span><span class="tag ${s}">${a.status}</span></div>
+    <div class="scan-body">
+      <div class="info-row"><span class="info-label">资产名称</span><span class="info-value">${a.asset_name}</span></div>
+      <div class="info-row"><span class="info-label">使用部门</span><span class="info-value">${a.department}</span></div>
+      <div class="info-row"><span class="info-label">责任人</span><span class="info-value">${a.responsible_person}</span></div>
+      <div class="info-row"><span class="info-label">台账存放地点</span><span class="info-value" id="bookLocation">${a.location}</span></div>
+      ${rfidDisplay}
+    </div></div>
+    <div class="section-title">盘点确认</div>
+    <div class="confirm-box">
+      <div class="notice">请核对资产实际信息，如有差异请在下方填写实际情况。</div>
+      <div class="form-group"><label>盘点人姓名 *</label><input type="text" id="inventoryPerson" placeholder="请输入您的姓名"></div>
+      <div class="form-group"><label>实际存放地点 *</label><input type="text" id="actualLocation" value="${a.location}"></div>
+      <div class="form-group"><label>盘点任务</label><select id="scanTaskSelect"><option value="">选择盘点任务（可选）</option></select></div>
+    </div>
+  `;
+  actionBar.style.display = 'flex';
+  document.getElementById('confirmBtn').dataset.assetCode = a.asset_code;
+  document.getElementById('confirmBtn').dataset.location = a.location;
+
+  // Load tasks
+  const tasks = await db.getAllTasks();
+  const sel = document.getElementById('scanTaskSelect');
+  if (sel) sel.innerHTML = '<option value="">选择盘点任务（可选）</option>' + tasks.filter(t => t.status === '进行中').map(t => `<option value="${t.task_id}">${t.task_name}</option>`).join('');
 }
 
 async function confirmInventory() {
@@ -756,8 +836,8 @@ function getDiffTag(type) {
 
 // ===================== Excel =====================
 function exportTemplate() {
-  const headers = ['asset_code','asset_name','category','spec_model','serial_no','brand','purchase_date','purchase_price','department','current_user','location','status','supplier','useful_life_months','depreciation_method','accumulated_depreciation','net_value','responsible_person','book_date','voucher_no','remarks'];
-  const sample = ['FA20260001','联想笔记本','IT设备','ThinkPad T14','SN123456','联想','2024-01-15',6500,'技术部','张三','A栋-3层-301','在用','京东',36,'直线',1083.33,5416.67,'李四','2024-01-20','PZ-2024-001','新员工配发'];
+  const headers = ['asset_code','asset_name','category','spec_model','serial_no','brand','purchase_date','purchase_price','department','current_user','location','status','supplier','useful_life_months','depreciation_method','accumulated_depreciation','net_value','responsible_person','book_date','voucher_no','remarks','rfid_tag'];
+  const sample = ['FA20260001','联想笔记本','IT设备','ThinkPad T14','SN123456','联想','2024-01-15',6500,'技术部','张三','A栋-3层-301','在用','京东',36,'直线',1083.33,5416.67,'李四','2024-01-20','PZ-2024-001','新员工配发','EPC123456789'];
   const ws = XLSX.utils.aoa_to_sheet([headers, sample]);
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Template');
@@ -769,7 +849,7 @@ function exportAssets() {
     资产编号: a.asset_code, 资产名称: a.asset_name, 分类: a.category, 规格型号: a.spec_model,
     序列号: a.serial_no, 品牌: a.brand, 购入日期: a.purchase_date, 购入价格: a.purchase_price,
     部门: a.department, 使用人: a.current_user, 存放地点: a.location, 状态: a.status,
-    责任人: a.responsible_person, 净值: a.net_value
+    责任人: a.responsible_person, 净值: a.net_value, RFID: a.rfid_tag || ''
   }));
   const ws = XLSX.utils.json_to_sheet(data);
   const wb = XLSX.utils.book_new();
