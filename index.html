@@ -949,9 +949,21 @@ async function confirmInventory() {
   const status = originalLocation === location ? '正常' : '位置不符';
 
   try {
+    // 根据盘点人查找包含该资产的任务，将任务ID关联到记录
+    const allTasks = await db.getAllTasks();
+    const matchedTask = allTasks.find(t =>
+      (t.asset_codes || []).includes(assetCode) &&
+      (t.inventory_persons || []).includes(person)
+    );
+
     await db.addRecord({
-      asset_code: assetCode, inventory_person: person, inventory_time: new Date().toISOString(),
-      original_location: originalLocation, actual_location: location, status
+      asset_code: assetCode,
+      task_id: matchedTask ? matchedTask.task_id : null,
+      inventory_person: person,
+      inventory_time: new Date().toISOString(),
+      original_location: originalLocation,
+      actual_location: location,
+      status
     });
 
     // 更新资产状态为已盘点
@@ -1104,9 +1116,10 @@ async function generateReport() {
   const assignedAssets = allAssets.filter(a => assignedCodes.includes(a.asset_code));
   const allRecords = await db.getAllRecords();
 
-  // 只取资产在该任务分配列表中的记录；若任务绑定了盘点人，则再按人过滤
+  // 只取资产在该任务分配列表中的记录；优先按 task_id 匹配，旧数据再按盘点人过滤
   const taskRecords = allRecords.filter(r => {
     if (!assignedCodes.includes(r.asset_code)) return false;
+    if (r.task_id) return r.task_id === taskId;  // 新记录：严格匹配任务ID
     if (boundPersons.length > 0 && !boundPersons.includes(r.inventory_person)) return false;
     return true;
   });
