@@ -1007,8 +1007,7 @@ async function loadTasks() {
     return `<tr><td>${t.task_id}</td><td>${t.task_name}</td><td>${t.start_date}</td><td>${t.end_date}</td>
     <td>${persons}</td>
     <td><span class="tag ${t.status === '进行中' ? 'tag-success' : 'tag-secondary'}">${t.status}</span></td>
-    <td><button class="btn btn-primary" style="padding:4px 8px;font-size:12px;" onclick="editTaskModal('${t.task_id}')">编辑</button>
-    <button class="btn btn-primary" style="padding:4px 8px;font-size:12px;" onclick="viewTaskReport('${t.task_id}')">查看</button>
+    <td><button class="btn btn-primary" style="padding:4px 8px;font-size:12px;" onclick="viewTaskReport('${t.task_id}')">查看</button>
     <button class="btn btn-danger" style="padding:4px 8px;font-size:12px;" onclick="deleteTask('${t.task_id}')">删除</button></td></tr>`;
   }).join('');
 
