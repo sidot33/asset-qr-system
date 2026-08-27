@@ -184,8 +184,6 @@ tr:hover { background: #f5f5f5; }
 <div class="card">
 <div class="toolbar">
 <button class="btn btn-primary" onclick="openTaskModal()">+ 新建盘点任务</button>
-<select class="search-box" id="toolbarTaskSelect" style="min-width:180px;"><option value="">选择盘点任务</option></select>
-<button class="btn btn-primary" onclick="openAssignAssetModal()">为该任务分配资产</button>
 </div>
 <table>
 <thead><tr><th>任务ID</th><th>任务名称</th><th>开始日期</th><th>结束日期</th><th>绑定盘点人</th><th>状态</th><th>操作</th></tr></thead>
@@ -312,7 +310,7 @@ tr:hover { background: #f5f5f5; }
 <!-- Task Modal -->
 <div class="modal" id="taskModal">
 <div class="modal-content" style="max-width: 600px;">
-<div class="modal-header"><h3>新建盘点任务</h3><button class="close-btn" onclick="closeModal('taskModal')">&times;</button></div>
+<div class="modal-header"><h3 id="taskModalTitle">新建盘点任务</h3><button class="close-btn" onclick="closeModal('taskModal')">&times;</button></div>
 <div class="modal-body">
 <div class="form-group"><label>任务ID</label><input type="text" id="task_id" readonly></div>
 <div class="form-group"><label>任务名称</label><input type="text" id="task_name" placeholder="如：2024年度年终盘点"></div>
@@ -323,7 +321,7 @@ tr:hover { background: #f5f5f5; }
 </div>
 <div class="modal-footer">
 <button type="button" class="btn btn-secondary" onclick="closeModal('taskModal')">取消</button>
-<button type="button" class="btn btn-primary" onclick="saveTask()">创建</button>
+<button type="button" class="btn btn-primary" id="taskSaveBtn" onclick="saveTask()">创建</button>
 </div>
 </div>
 </div>
@@ -597,10 +595,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
     });
   });
-
-  // Init task dates
-  document.getElementById('task_start').value = new Date().toISOString().split('T')[0];
-  document.getElementById('task_end').value = new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0];
 
   // RFID scanner listener
   initRFIDListener();
@@ -1013,7 +1007,7 @@ async function loadTasks() {
     return `<tr><td>${t.task_id}</td><td>${t.task_name}</td><td>${t.start_date}</td><td>${t.end_date}</td>
     <td>${persons}</td>
     <td><span class="tag ${t.status === '进行中' ? 'tag-success' : 'tag-secondary'}">${t.status}</span></td>
-    <td><button class="btn btn-primary" style="padding:4px 8px;font-size:12px;" onclick="editTaskAssets('${t.task_id}')">分配资产(${assetCount})</button>
+    <td><button class="btn btn-primary" style="padding:4px 8px;font-size:12px;" onclick="editTaskModal('${t.task_id}')">编辑</button>
     <button class="btn btn-primary" style="padding:4px 8px;font-size:12px;" onclick="viewTaskReport('${t.task_id}')">查看</button>
     <button class="btn btn-danger" style="padding:4px 8px;font-size:12px;" onclick="deleteTask('${t.task_id}')">删除</button></td></tr>`;
   }).join('');
@@ -1107,7 +1101,13 @@ function generateUniqueTaskId() {
 }
 
 async function openTaskModal() {
+  document.getElementById('taskModalTitle').textContent = '新建盘点任务';
+  document.getElementById('taskSaveBtn').textContent = '创建';
   document.getElementById('task_id').value = generateUniqueTaskId();
+  document.getElementById('task_name').value = '';
+  document.getElementById('task_start').value = new Date().toISOString().split('T')[0];
+  document.getElementById('task_end').value = new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0];
+  document.getElementById('task_persons').value = '';
   document.getElementById('taskModal').classList.add('active');
   const container = document.getElementById('taskAssetSelect');
   const allAssets = await db.getAllAssets();
@@ -1122,12 +1122,39 @@ async function openTaskModal() {
     `).join('');
   }
 }
+
+async function editTaskModal(taskId) {
+  const task = tasks.find(t => t.task_id === taskId);
+  if (!task) return;
+  document.getElementById('taskModalTitle').textContent = '编辑盘点任务';
+  document.getElementById('taskSaveBtn').textContent = '保存';
+  document.getElementById('task_id').value = task.task_id;
+  document.getElementById('task_name').value = task.task_name || '';
+  document.getElementById('task_start').value = task.start_date || '';
+  document.getElementById('task_end').value = task.end_date || '';
+  document.getElementById('task_persons').value = (task.inventory_persons || []).join(', ');
+  document.getElementById('taskModal').classList.add('active');
+  const container = document.getElementById('taskAssetSelect');
+  const allAssets = await db.getAllAssets();
+  const selected = new Set((task.asset_codes || []).map(String));
+  if (allAssets.length === 0) {
+    container.innerHTML = '<div class="notice" style="margin:0;">暂无资产，请先添加资产</div>';
+  } else {
+    container.innerHTML = allAssets.map(a => `
+      <label style="display:flex;align-items:center;gap:8px;padding:6px 0;cursor:pointer;font-size:13px;">
+        <input type="checkbox" class="task-asset-check" value="${a.asset_code}" ${selected.has(String(a.asset_code)) ? 'checked' : ''} style="width:auto;">
+        <span>${a.asset_code} - ${a.asset_name} (${a.department})</span>
+      </label>
+    `).join('');
+  }
+}
 async function saveTask() {
-  const assetCodes = Array.from(document.querySelectorAll('.task-asset-check:checked')).map(cb => cb.value);
+  const assetCodes = Array.from(document.querySelectorAll('.task-asset-check:checked')).map(cb => String(cb.value));
   const personsRaw = document.getElementById('task_persons').value.trim();
-  let taskId = document.getElementById('task_id').value;
-  // 防重复：若 task_id 已被占用（极端并发或手动修改），重新生成
-  if (tasks.some(t => t.task_id === taskId)) {
+  const taskId = document.getElementById('task_id').value;
+  const isEdit = tasks.some(t => t.task_id === taskId);
+  // 新建模式下防重复
+  if (!isEdit && tasks.some(t => t.task_id === taskId)) {
     taskId = generateUniqueTaskId();
     document.getElementById('task_id').value = taskId;
   }
@@ -1141,9 +1168,15 @@ async function saveTask() {
     asset_codes: assetCodes
   };
   if (!task.task_name || !task.start_date || !task.end_date) { alert('请填写完整信息'); return; }
-  await db.putTask(task);
-  closeModal('taskModal');
-  await loadTasks();
+  try {
+    await db.putTask(task);
+    closeModal('taskModal');
+    await loadTasks();
+    alert(isEdit ? '盘点任务已更新' : '盘点任务已创建');
+  } catch (err) {
+    console.error('保存任务失败:', err);
+    alert('保存任务失败: ' + (err.message || '未知错误'));
+  }
 }
 async function deleteTask(taskId) {
   if (!confirm(`确认删除盘点任务 ${taskId}？\n注意：删除后该任务的盘点记录将不再关联此任务，但记录本身会保留。`)) return;
