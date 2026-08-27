@@ -317,7 +317,7 @@ tr:hover { background: #f5f5f5; }
 <div class="form-group"><label>开始日期</label><input type="date" id="task_start"></div>
 <div class="form-group"><label>结束日期</label><input type="date" id="task_end"></div>
 <div class="form-group"><label>绑定盘点人</label><input type="text" id="task_persons" placeholder="如：张三,李四,王五（多个用逗号分隔）"></div>
-<div class="form-group"><label>选择盘点资产</label><div id="taskAssetSelect" style="max-height:200px;overflow-y:auto;border:1px solid #d9d9d9;border-radius:6px;padding:8px;"><div class="notice" style="margin:0;">加载资产列表...</div></div></div>
+<div class="form-group"><label>选择盘点资产</label><input type="text" class="search-box" id="taskAssetSearch" placeholder="搜索资产编号/名称/地点..." oninput="filterTaskAssets()" style="margin-bottom:8px;width:100%;"><div id="taskAssetSelect" style="max-height:200px;overflow-y:auto;border:1px solid #d9d9d9;border-radius:6px;padding:8px;"><div class="notice" style="margin:0;">加载资产列表...</div></div></div>
 </div>
 <div class="modal-footer">
 <button type="button" class="btn btn-secondary" onclick="closeModal('taskModal')">取消</button>
@@ -1100,6 +1100,53 @@ function generateUniqueTaskId() {
   return id;
 }
 
+function updateTaskSelectAllState() {
+  const checks = document.querySelectorAll('.task-asset-check');
+  const allChecked = checks.length > 0 && Array.from(checks).every(cb => cb.checked);
+  const master = document.getElementById('taskAssetSelectAll');
+  if (master) master.checked = allChecked;
+}
+
+function renderTaskAssetOptions(assets, preselected) {
+  const container = document.getElementById('taskAssetSelect');
+  const selected = preselected || new Set(Array.from(document.querySelectorAll('.task-asset-check:checked')).map(cb => String(cb.value)));
+  if (assets.length === 0) {
+    container.innerHTML = '<div class="notice" style="margin:0;">暂无匹配资产</div>';
+    return;
+  }
+  const allChecked = assets.length > 0 && assets.every(a => selected.has(String(a.asset_code)));
+  container.innerHTML = `
+    <label style="display:flex;align-items:center;gap:8px;padding:6px 0;cursor:pointer;font-size:13px;border-bottom:1px solid #f0f0f0;margin-bottom:4px;">
+      <input type="checkbox" id="taskAssetSelectAll" ${allChecked ? 'checked' : ''} onchange="toggleSelectAllTaskAssets(this.checked)" style="width:auto;">
+      <span style="font-weight:600;">全选</span>
+    </label>
+    ${assets.map(a => `
+      <label style="display:flex;align-items:center;gap:8px;padding:6px 0;cursor:pointer;font-size:13px;">
+        <input type="checkbox" class="task-asset-check" value="${a.asset_code}" ${selected.has(String(a.asset_code)) ? 'checked' : ''} onchange="updateTaskSelectAllState()" style="width:auto;">
+        <span>${a.asset_code} - ${a.asset_name} (${a.department} | ${a.location || '-'})</span>
+      </label>
+    `).join('')}`;
+}
+
+function filterTaskAssets() {
+  const keyword = document.getElementById('taskAssetSearch')?.value.trim().toLowerCase() || '';
+  const allAssets = window._taskAssetAllData || [];
+  if (!keyword) {
+    renderTaskAssetOptions(allAssets);
+    return;
+  }
+  const filtered = allAssets.filter(a =>
+    String(a.asset_code).toLowerCase().includes(keyword) ||
+    String(a.asset_name).toLowerCase().includes(keyword) ||
+    String(a.location || '').toLowerCase().includes(keyword)
+  );
+  renderTaskAssetOptions(filtered);
+}
+
+function toggleSelectAllTaskAssets(checked) {
+  document.querySelectorAll('.task-asset-check').forEach(cb => cb.checked = checked);
+}
+
 async function openTaskModal() {
   document.getElementById('taskModalTitle').textContent = '新建盘点任务';
   document.getElementById('taskSaveBtn').textContent = '创建';
@@ -1108,18 +1155,14 @@ async function openTaskModal() {
   document.getElementById('task_start').value = new Date().toISOString().split('T')[0];
   document.getElementById('task_end').value = new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0];
   document.getElementById('task_persons').value = '';
+  document.getElementById('taskAssetSearch').value = '';
   document.getElementById('taskModal').classList.add('active');
-  const container = document.getElementById('taskAssetSelect');
   const allAssets = await db.getAllAssets();
+  window._taskAssetAllData = allAssets;
   if (allAssets.length === 0) {
-    container.innerHTML = '<div class="notice" style="margin:0;">暂无资产，请先添加资产</div>';
+    document.getElementById('taskAssetSelect').innerHTML = '<div class="notice" style="margin:0;">暂无资产，请先添加资产</div>';
   } else {
-    container.innerHTML = allAssets.map(a => `
-      <label style="display:flex;align-items:center;gap:8px;padding:6px 0;cursor:pointer;font-size:13px;">
-        <input type="checkbox" class="task-asset-check" value="${a.asset_code}" style="width:auto;">
-        <span>${a.asset_code} - ${a.asset_name} (${a.department})</span>
-      </label>
-    `).join('');
+    renderTaskAssetOptions(allAssets);
   }
 }
 
@@ -1133,25 +1176,21 @@ async function editTaskModal(taskId) {
   document.getElementById('task_start').value = task.start_date || '';
   document.getElementById('task_end').value = task.end_date || '';
   document.getElementById('task_persons').value = (task.inventory_persons || []).join(', ');
+  document.getElementById('taskAssetSearch').value = '';
   document.getElementById('taskModal').classList.add('active');
-  const container = document.getElementById('taskAssetSelect');
   const allAssets = await db.getAllAssets();
+  window._taskAssetAllData = allAssets;
   const selected = new Set((task.asset_codes || []).map(String));
   if (allAssets.length === 0) {
-    container.innerHTML = '<div class="notice" style="margin:0;">暂无资产，请先添加资产</div>';
+    document.getElementById('taskAssetSelect').innerHTML = '<div class="notice" style="margin:0;">暂无资产，请先添加资产</div>';
   } else {
-    container.innerHTML = allAssets.map(a => `
-      <label style="display:flex;align-items:center;gap:8px;padding:6px 0;cursor:pointer;font-size:13px;">
-        <input type="checkbox" class="task-asset-check" value="${a.asset_code}" ${selected.has(String(a.asset_code)) ? 'checked' : ''} style="width:auto;">
-        <span>${a.asset_code} - ${a.asset_name} (${a.department})</span>
-      </label>
-    `).join('');
+    renderTaskAssetOptions(allAssets, selected);
   }
 }
 async function saveTask() {
   const assetCodes = Array.from(document.querySelectorAll('.task-asset-check:checked')).map(cb => String(cb.value));
   const personsRaw = document.getElementById('task_persons').value.trim();
-  const taskId = document.getElementById('task_id').value;
+  let taskId = document.getElementById('task_id').value;
   const isEdit = tasks.some(t => t.task_id === taskId);
   // 新建模式下防重复
   if (!isEdit && tasks.some(t => t.task_id === taskId)) {
