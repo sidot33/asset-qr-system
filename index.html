@@ -427,7 +427,15 @@ class CloudBaseDB {
   async putTask(task) {
     const existing = await this.getTask(task.task_id);
     if (existing) {
-      const { _id, _openid, _createTime, _updateTime, ...updateData } = task;
+      const { _id, _openid, _createTime, _updateTime, ...rawData } = task;
+      // 过滤 undefined / null / 函数，避免 CloudBase update 静默失败或误删字段
+      const updateData = {};
+      Object.keys(rawData).forEach(k => {
+        const v = rawData[k];
+        if (v !== undefined && v !== null && typeof v !== 'function') {
+          updateData[k] = v;
+        }
+      });
       // CloudBase update requires {set: value} for array fields
       if (Array.isArray(updateData.asset_codes)) {
         updateData.asset_codes = { set: updateData.asset_codes };
@@ -1020,13 +1028,20 @@ async function loadTasks() {
 async function editTaskAssets(taskId) {
   const task = tasks.find(t => t.task_id === taskId);
   if (!task) return;
-  const allAssets = await db.getAllAssets();
-  const selected = new Set((task.asset_codes || []).map(String));
   const codes = prompt('请输入该任务要盘点的资产编号（多个用逗号分隔）：', (task.asset_codes || []).join(', '));
   if (codes === null) return;
-  task.asset_codes = codes.split(',').map(s => s.trim()).filter(Boolean);
+  const newAssetCodes = codes.split(',').map(s => s.trim()).filter(Boolean);
   try {
-    await db.putTask(task);
+    // 只更新 asset_codes，避免传入整个 task 对象携带冗余/异常字段
+    await db.putTask({
+      task_id: task.task_id,
+      task_name: task.task_name,
+      start_date: task.start_date,
+      end_date: task.end_date,
+      status: task.status,
+      inventory_persons: task.inventory_persons || [],
+      asset_codes: newAssetCodes
+    });
     await loadTasks();
     alert('资产分配已保存');
   } catch (err) {
@@ -1062,9 +1077,18 @@ async function saveAssignAssets() {
   const taskId = document.getElementById('toolbarTaskSelect').value;
   const task = tasks.find(t => t.task_id === taskId);
   if (!task) return;
-  task.asset_codes = Array.from(document.querySelectorAll('.assign-asset-check:checked')).map(cb => cb.value);
+  const newAssetCodes = Array.from(document.querySelectorAll('.assign-asset-check:checked')).map(cb => String(cb.value));
   try {
-    await db.putTask(task);
+    // 只更新 asset_codes，避免传入整个 task 对象携带冗余/异常字段
+    await db.putTask({
+      task_id: task.task_id,
+      task_name: task.task_name,
+      start_date: task.start_date,
+      end_date: task.end_date,
+      status: task.status,
+      inventory_persons: task.inventory_persons || [],
+      asset_codes: newAssetCodes
+    });
     closeModal('assignAssetModal');
     await loadTasks();
     alert('资产分配已保存');
@@ -1203,7 +1227,8 @@ async function generateReport() {
   content.innerHTML = `
     <div class="card"><h3 style="margin-bottom:12px;color:#0074b7;">盘点报告 - ${taskId}</h3>
     <p>任务分配资产: ${assignedAssets.length} | 盘点成功: ${checkedCount} | 盘点失败: ${failCount} | 未盘点: ${uncheckedCount} | 筛选: ${statusFilter}</p>
-    <p>绑定盘点人: ${boundPersons.join(', ') || '无'} | 生成时间: ${new Date().toLocaleString()}</p>
+    <p>绑定盘点人: ${boundPersons.join(', ') || '无'} | 盘点结束时间: ${task?.end_date || '-'}</p>
+    <div class="notice" style="margin-top:10px;">请在规定盘点时间内进行盘点；若已指定盘点人，仅显示指定盘点人的盘点结果</div>
     <div style="margin-top:12px;"><button class="btn btn-success" onclick="exportDiffReport()">导出Excel</button></div>
     <table style="margin-top:12px;"><thead><tr><th>资产编号</th><th>资产名称</th><th>盘点情况</th><th>账面净值</th><th>台账地点</th><th>实际地点</th><th>实际盘点时间</th><th>盘点人员</th></tr></thead>
     <tbody>${diffItems.map(item => `<tr><td>${item.asset_code}</td><td>${item.asset_name}</td><td>${getDiffTag(item.diff_type)}</td><td>${item.book_value || '-'}</td><td>${item.expected_location || '-'}</td><td>${item.actual_location || '-'}</td><td>${item.inventory_time ? new Date(item.inventory_time).toLocaleString() : '-'}</td><td>${item.inventory_person || '-'}</td></tr>`).join('')}</tbody>
